@@ -127,6 +127,14 @@ return [
             'path' => storage_path('logs/laravel.log'),
         ],
 
+        'ingesta' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/ingesta.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'days' => env('LOG_INGESTA_DAYS', 0),
+            'replace_placeholders' => true,
+        ],
+
     ],
 
 ];

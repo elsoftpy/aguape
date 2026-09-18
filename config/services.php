@@ -35,4 +35,10 @@ return [
         ],
     ],
 
+    'ingesta' => [
+        'token' => env('INGESTA_TOKEN'),
+        'hmac_secret' => env('INGESTA_HMAC_SECRET'),
+        'signature_tolerance_seconds' => env('INGESTA_SIGNATURE_TOLERANCE_SECONDS', 300),
+    ],
+    
 ];

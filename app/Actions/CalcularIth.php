@@ -4,7 +4,6 @@ namespace App\Actions;
 
 use App\Models\Lectura;
 use App\Models\Nodo;
-use App\Models\Variable;
 use Carbon\CarbonInterface;
 
 class CalcularIth
@@ -16,16 +15,12 @@ class CalcularIth
      */
     public function __invoke(Nodo $nodo, CarbonInterface $medidoEn, float $temperaturaAmbiente, float $humedadRelativa): Lectura
     {
-        $variableIth = Variable::query()->where('clave', 'ith')->firstOrFail();
-
-        return Lectura::query()->updateOrCreate(
-            [
-                'nodo_id' => $nodo->id,
-                'variable_id' => $variableIth->id,
-                'medido_en' => $medidoEn,
-            ],
-            ['valor' => self::formula($temperaturaAmbiente, $humedadRelativa)],
-        );
+        return app(GuardarLectura::class)(
+            nodo: $nodo,
+            claveVariable: 'ith',
+            medidoEn: $medidoEn,
+            valor: self::formula(temperaturaAmbiente: $temperaturaAmbiente, humedadRelativa: $humedadRelativa),
+        ); 
     }
 
     /**
