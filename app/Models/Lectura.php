@@ -2,16 +2,20 @@
 
 namespace App\Models;
 
+use App\Observers\LecturaObserver;
+use Database\Factories\LecturaFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable(['nodo_id', 'variable_id', 'valor', 'medido_en'])]
+#[ObservedBy(LecturaObserver::class)]
 class Lectura extends Model
 {
-    /** @use HasFactory<\Database\Factories\LecturaFactory> */
+    /** @use HasFactory<LecturaFactory> */
     use HasFactory;
 
     protected function casts(): array

@@ -14,7 +14,7 @@ entorno que usa `main.py` (`INGESTA_URL`, `INGESTA_TOKEN`,
 from main import construir_payload, enviar
 
 decodificado_de_ejemplo = {
-    "codigo": "TEST-01",
+    "codigo": "N-1",
     "nivel_bateria": 87.5,
     "lecturas": [
         {"variable": "temperatura_aire", "valor": 24.3},
