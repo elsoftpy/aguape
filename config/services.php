@@ -41,4 +41,8 @@ return [
         'signature_tolerance_seconds' => env('INGESTA_SIGNATURE_TOLERANCE_SECONDS', 300),
     ],
     
+     'recaptcha' => [
+        'sitekey' => env('RECAPTCHA_SITE_KEY'),
+        'secretkey' => env('RECAPTCHA_SECRET_KEY'),
+    ],
 ];
