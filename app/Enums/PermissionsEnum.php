@@ -8,4 +8,6 @@ enum PermissionsEnum: string
     case GestionarUmbrales = 'gestionar-umbrales';
     case GestionarAlertas = 'gestionar-alertas';
     case VerHistorialAlertas = 'ver-historial-alertas';
+    case GestionarUsuarios = 'gestionar-usuarios';
+    case GestionarFacturacion = 'gestionar-facturacion';
 }
