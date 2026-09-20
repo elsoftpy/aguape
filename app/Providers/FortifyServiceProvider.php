@@ -8,10 +8,12 @@ use App\Actions\Fortify\UpdateUserPassword;
 use App\Actions\Fortify\UpdateUserProfileInformation;
 use App\Enums\UserStatus;
 use App\Models\User;
+use App\Rules\RecaptchaValidationRule;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -38,7 +40,12 @@ class FortifyServiceProvider extends ServiceProvider
         Fortify::updateUserPasswordsUsing(UpdateUserPassword::class);
         Fortify::resetUserPasswordsUsing(ResetUserPassword::class);
         Fortify::redirectUserForTwoFactorAuthenticationUsing(RedirectIfTwoFactorAuthenticatable::class);
+        Fortify::loginView('auth.login');
         Fortify::authenticateUsing(function (Request $request) {
+            Validator::make($request->all(), [
+                'g-recaptcha-response' => ['required', new RecaptchaValidationRule],
+            ])->validate();    
+
             $user = User::where(Fortify::username(), $request->{Fortify::username()})->first();
 
             if (! $user || ! Hash::check($request->password, $user->password)) {
