@@ -17,8 +17,8 @@ decodificado_de_ejemplo = {
     "codigo": "N-1",
     "nivel_bateria": 87.5,
     "lecturas": [
-        {"variable": "temperatura_aire", "valor": 24.3},
-        {"variable": "humedad_aire", "valor": 61.2},
+        {"variable": "temperatura_aire", "valor": 42.3},
+        {"variable": "humedad_aire", "valor": 92.2},
     ],
 }
 
