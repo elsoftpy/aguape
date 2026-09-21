@@ -1,18 +1,8 @@
 <div wire:poll.30s>
-    <header class="flex flex-wrap items-center justify-between gap-4 border-b border-border px-6 py-5 md:px-8">
-        <div>
-            <h1 class="text-xl font-bold text-text-primary">Panel general</h1>
-            <p class="text-sm text-text-secondary">
-                {{ $this->establecimiento?->nombre ?? 'Aguape' }}
-                @if ($this->establecimiento?->ubicacion)
-                    · {{ $this->establecimiento->ubicacion }}
-                @endif
-            </p>
-        </div>
+    <x-layouts.page-header :establecimiento="$this->establecimiento" title="Panel general">
+        <x-slot:actions>
+            @php $hayAlertasPendientes = $this->totalAlertasPendientes > 0; @endphp
 
-        @php $hayAlertasPendientes = $this->totalAlertasPendientes > 0; @endphp
-
-        <div class="flex items-center gap-3">
             <span
                 class="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium text-text-primary
                     {{ $hayAlertasPendientes ? 'border-warning/40 bg-warning-dim' : 'border-success/40 bg-success-dim' }}"
@@ -20,8 +10,8 @@
                 <span class="size-1.5 rounded-full {{ $hayAlertasPendientes ? 'bg-warning' : 'bg-success' }}"></span>
                 {{ $this->totalAlertasPendientes }} {{ Str::plural('alerta', $this->totalAlertasPendientes) }} pendiente{{ $this->totalAlertasPendientes === 1 ? '' : 's' }}
             </span>
-        </div>
-    </header>
+        </x-slot:actions>
+    </x-layouts.page-header>
 
     <div class="space-y-8 px-6 py-6 md:px-8">
         <section>
