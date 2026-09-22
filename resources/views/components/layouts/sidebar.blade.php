@@ -2,9 +2,9 @@
     $navItems = collect([
         ['label' => 'Panel general', 'icon' => 'squares-2x2', 'route' => 'dashboard', 'permission' => null, 'group' => 'main'],
         ['label' => 'Zonas / potreros', 'icon' => 'map', 'route' => null, 'permission' => null, 'group' => 'main'],
-        ['label' => 'Nodos LoRa', 'icon' => 'cpu-chip', 'route' => null, 'permission' => null, 'group' => 'main'],
         ['label' => 'Alertas', 'icon' => 'bell-alert', 'route' => 'alertas', 'permission' => [\App\Enums\PermissionsEnum::VerHistorialAlertas, \App\Enums\PermissionsEnum::GestionarAlertas], 'group' => 'main'],
         ['label' => 'Reportes', 'icon' => 'chart-bar', 'route' => null, 'permission' => null, 'group' => 'main'],
+        ['label' => 'Nodos LoRa', 'icon' => 'cpu-chip', 'route' => 'nodos', 'permission' => \App\Enums\PermissionsEnum::GestionarNodos, 'group' => 'settings'],
         ['label' => 'Configuración de umbrales', 'icon' => 'adjustments-horizontal', 'route' => 'umbrales', 'permission' => \App\Enums\PermissionsEnum::GestionarUmbrales, 'group' => 'settings'],
         ['label' => 'Usuarios y roles', 'icon' => 'users', 'route' => null, 'permission' => \App\Enums\PermissionsEnum::GestionarUsuarios, 'group' => 'admin'],
         ['label' => 'Pasarela de pago', 'icon' => 'credit-card', 'route' => null, 'permission' => \App\Enums\PermissionsEnum::GestionarFacturacion, 'group' => 'admin'],

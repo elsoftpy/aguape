@@ -37,7 +37,7 @@ class Alertas extends Component
     {
         $this->dialog()
             ->question('¿Marcar como revisada?')
-            ->confirm('Sí', 'marcarComoRevisada', $alerta->id)
+            ->confirm('Sí, marcar', 'marcarComoRevisada', $alerta->id)
             ->cancel('Cancelar')
             ->send();
     }

@@ -29,6 +29,7 @@ class RolesAndPermissionsSeeder extends Seeder
         Role::findOrCreate(RolesEnum::Operador->value, 'web')->syncPermissions([
             PermissionsEnum::VerDashboard->value,
             PermissionsEnum::GestionarUmbrales->value,
+            PermissionsEnum::GestionarNodos->value,
             PermissionsEnum::GestionarAlertas->value,
         ]);
 
