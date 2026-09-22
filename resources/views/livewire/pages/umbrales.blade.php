@@ -20,7 +20,7 @@
 
                     <x-input
                         wire:model="filas.{{ $variable->id }}.minimo"
-                        type="text"
+                        x-mask:dynamic="$money($input, ',', '.', 2)"
                         inputmode="decimal"
                         label="Mínimo"
                         placeholder="—"
@@ -29,7 +29,7 @@
 
                     <x-input
                         wire:model="filas.{{ $variable->id }}.maximo"
-                        type="text"
+                        x-mask:dynamic="$money($input, ',', '.', 2)"
                         inputmode="decimal"
                         label="Máximo"
                         placeholder="—"

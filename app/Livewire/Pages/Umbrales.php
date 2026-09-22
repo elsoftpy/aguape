@@ -4,11 +4,11 @@ namespace App\Livewire\Pages;
 
 use App\Enums\PermissionsEnum;
 use App\Enums\TipoUmbral;
+use App\Livewire\Concerns\AnalizaDecimales;
 use App\Models\Establecimiento;
 use App\Models\Umbral;
 use App\Models\Variable;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Number;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
@@ -19,20 +19,8 @@ use TallStackUi\Traits\Interactions;
 #[Title('Configuración de umbrales')]
 class Umbrales extends Component
 {
-    use Interactions;
+    use AnalizaDecimales, Interactions;
 
-    /**
-     * Estado editable por variable, indexado por `variable_id`. `minimo`/
-     * `maximo` se muestran ya formateados en es-PY (coma decimal, punto de
-     * miles) — se parsean de vuelta con `Number::parseFloat()` al guardar,
-     * nunca se bindea el `decimal:4` crudo de `Umbral::valor` (confunde,
-     * ver docs/dev-guide.md). Solo maneja umbrales globales (`nodo_id`
-     * nulo) — un override por nodo sigue editándose a mano (tinker/seeder)
-     * por ahora, decisión explícita para no sumarle un selector de nodo a
-     * esta pantalla todavía.
-     *
-     * @var array<int, array{minimo: string|null, maximo: string|null, activo: bool}>
-     */
     public array $filas = [];
 
     public function mount(): void
@@ -52,8 +40,8 @@ class Umbrales extends Component
 
         $fila = $this->filas[$variableId];
 
-        $minimo = $this->analizarValor($fila['minimo']);
-        $maximo = $this->analizarValor($fila['maximo']);
+        $minimo = $this->analizarDecimal($fila['minimo']);
+        $maximo = $this->analizarDecimal($fila['maximo']);
 
         if ($minimo === false || $maximo === false) {
             $this->toast()->error('Valor inválido', 'Revisá el formato de los números ingresados.')->send();
@@ -90,20 +78,6 @@ class Umbrales extends Component
     }
 
     /**
-     * Interpreta un valor tipeado en es-PY ("1.234,56") a float. `null`
-     * significa "campo vacío" (borrar el umbral de ese tipo si existía),
-     * `false` significa "no se pudo interpretar" (valor inválido).
-     */
-    private function analizarValor(?string $valor): float|false|null
-    {
-        if ($valor === null || trim($valor) === '') {
-            return null;
-        }
-
-        return Number::parseFloat($valor);
-    }
-
-    /**
      * @return array{minimo: string|null, maximo: string|null, activo: bool}
      */
     private function cargarFila(Variable $variable): array
@@ -118,8 +92,8 @@ class Umbrales extends Component
         $maximo = $umbrales->get(TipoUmbral::Maximo->value);
 
         return [
-            'minimo' => $minimo ? Number::format((float) $minimo->valor, precision: 2) : null,
-            'maximo' => $maximo ? Number::format((float) $maximo->valor, precision: 2) : null,
+            'minimo' => $this->formatearDecimal($minimo?->valor),
+            'maximo' => $this->formatearDecimal($maximo?->valor),
             'activo' => (bool) ($minimo?->activo ?? $maximo?->activo ?? false),
         ];
     }
