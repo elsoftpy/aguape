@@ -38,8 +38,8 @@
                                 @endif
                             </p>
                             <p class="truncate font-mono text-[11px] text-text-tertiary">
-                                {{ rtrim(rtrim(number_format((float) $alerta->lectura->valor, 2), '0'), '.') }}{{ $alerta->variable->unidad }}
-                                ({{ $alerta->umbral->tipo->value }} {{ rtrim(rtrim(number_format((float) $alerta->umbral->valor, 2), '0'), '.') }})
+                                {{ \Illuminate\Support\Number::format((float) $alerta->lectura->valor, precision: 2)}}{{ $alerta->variable->unidad }}
+                                ({{ $alerta->umbral->tipo->value }} {{ \Illuminate\Support\Number::format((float) $alerta->umbral->valor, precision: 2)}})
                             </p>
                         </div>
                     </div>

@@ -19,26 +19,6 @@ use Livewire\Component;
 class Dashboard extends Component
 {
     /**
-     * Ícono decorativo por variable (heroicon, no hay match 1:1 para todas).
-     *
-     * @var array<string, string>
-     */
-    private const ICONOS = [
-        'nivel_agua' => 'beaker',
-        'ph_agua' => 'eye-dropper',
-        'temperatura_agua' => 'fire',
-        'turbidez_agua' => 'cloud',
-        'conductividad_agua' => 'bolt',
-        'temperatura_aire' => 'sun',
-        'humedad_aire' => 'cloud-arrow-down',
-        'humedad_suelo' => 'square-3-stack-3d',
-        'altura_pastura' => 'arrow-trending-up',
-        'radiacion_solar' => 'presentation-chart-line',
-        'precipitacion' => 'cloud-arrow-down',
-        'ith' => 'variable',
-    ];
-
-    /**
      * Nodos agrupados por potrero (los sin potrero van en un grupo aparte,
      * al final), cada uno con la última lectura de cada variable que ese
      * nodo reporta y el último nivel de batería (RF02, RF06). Agrupar por
@@ -94,7 +74,7 @@ class Dashboard extends Component
             $variables = $ultimasLecturasPorNodoVariable->get($nodo->id, collect())
                 ->map(fn (Lectura $lectura) => [
                     'lectura' => $lectura,
-                    'icono' => self::ICONOS[$lectura->variable->clave] ?? 'variable',
+                    'icono' => $lectura->variable->icono(),
                     'enAlerta' => $lecturaIdsEnAlerta->has($lectura->id),
                 ])
                 ->sortBy(fn (array $item) => $item['lectura']->variable->nombre)

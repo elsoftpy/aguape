@@ -61,7 +61,7 @@
                                         </div>
 
                                         <span class="font-mono text-xs text-text-tertiary">
-                                            Batería: {{ $item['bateria'] !== null ? rtrim(rtrim(number_format((float) $item['bateria'], 1), '0'), '.').'%' : '—' }}
+                                            Batería: {{ $item['bateria'] !== null ? \Illuminate\Support\Number::format((float) $item['bateria'], precision: 2 ).'%' : '—' }}
                                         </span>
                                     </div>
 
@@ -91,7 +91,7 @@
                                                     </div>
 
                                                     <div class="mt-3 font-mono">
-                                                        <span class="text-2xl font-bold text-text-primary">{{ rtrim(rtrim(number_format((float) $lectura->valor, 2), '0'), '.') }}</span>
+                                                        <span class="text-2xl font-bold text-text-primary">{{ \Illuminate\Support\Number::format((float) $lectura->valor, precision: 2)}}</span>
                                                         @if ($lectura->variable->unidad)
                                                             <span class="ml-1 text-sm text-text-secondary">{{ $lectura->variable->unidad }}</span>
                                                         @endif
@@ -132,8 +132,8 @@
                                     {{ $alerta->variable->nombre }} · {{ $alerta->nodo->nombre }}
                                 </p>
                                 <p class="truncate font-mono text-[11px] text-text-tertiary">
-                                    {{ rtrim(rtrim(number_format((float) $alerta->lectura->valor, 2), '0'), '.') }}{{ $alerta->variable->unidad }}
-                                    ({{ $alerta->umbral->tipo->value }} {{ rtrim(rtrim(number_format((float) $alerta->umbral->valor, 2), '0'), '.') }})
+                                    {{ \Illuminate\Support\Number::format((float) $alerta->lectura->valor, precision: 2)}}{{ $alerta->variable->unidad }}
+                                    ({{ $alerta->umbral->tipo->value }} {{ \Illuminate\Support\Number::format((float) $alerta->umbral->valor, precision: 2) }})
                                 </p>
                             </div>
                         </div>
