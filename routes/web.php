@@ -3,6 +3,7 @@
 use App\Enums\PermissionsEnum;
 use App\Livewire\Pages\Alertas;
 use App\Livewire\Pages\Dashboard;
+use App\Livewire\Pages\MiCuenta;
 use App\Livewire\Pages\Nodos;
 use App\Livewire\Pages\Umbrales;
 use Illuminate\Support\Facades\Route;
@@ -24,3 +25,7 @@ Route::livewire('/umbrales', Umbrales::class)
 Route::livewire('/nodos', Nodos::class)
     ->middleware(['auth', 'permission:'.PermissionsEnum::GestionarNodos->value])
     ->name('nodos');
+
+Route::livewire('/mi-cuenta', MiCuenta::class)
+    ->middleware(['auth', 'password.confirm'])
+    ->name('mi-cuenta');

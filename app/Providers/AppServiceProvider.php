@@ -2,8 +2,10 @@
 
 namespace App\Providers;
 
+use Illuminate\Auth\Middleware\RequirePassword;
 use Illuminate\Support\Number;
 use Illuminate\Support\ServiceProvider;
+use Livewire\Livewire;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -24,5 +26,9 @@ class AppServiceProvider extends ServiceProvider
         // texto (APP_LOCALE ya se usa para eso desde RF10) — sin esto,
         // Number::format() usa el default en-US de Laravel.
         Number::useLocale(config('app.locale'));
+
+        Livewire::addPersistentMiddleware([
+            RequirePassword::class,
+        ]);
     }
 }

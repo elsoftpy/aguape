@@ -8,6 +8,7 @@
         ['label' => 'Configuración de umbrales', 'icon' => 'adjustments-horizontal', 'route' => 'umbrales', 'permission' => \App\Enums\PermissionsEnum::GestionarUmbrales, 'group' => 'settings'],
         ['label' => 'Usuarios y roles', 'icon' => 'users', 'route' => null, 'permission' => \App\Enums\PermissionsEnum::GestionarUsuarios, 'group' => 'admin'],
         ['label' => 'Pasarela de pago', 'icon' => 'credit-card', 'route' => null, 'permission' => \App\Enums\PermissionsEnum::GestionarFacturacion, 'group' => 'admin'],
+        ['label' => 'Mi cuenta', 'icon' => 'user-circle', 'route' => 'mi-cuenta', 'permission' => null, 'group' => 'account'],
     ])
         ->filter(function (array $item) {
             if ($item['permission'] === null) {

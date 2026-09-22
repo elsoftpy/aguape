@@ -41,10 +41,12 @@ class FortifyServiceProvider extends ServiceProvider
         Fortify::resetUserPasswordsUsing(ResetUserPassword::class);
         Fortify::redirectUserForTwoFactorAuthenticationUsing(RedirectIfTwoFactorAuthenticatable::class);
         Fortify::loginView('auth.login');
+        Fortify::twoFactorChallengeView('auth.two-factor-challenge');
+        Fortify::confirmPasswordView('auth.confirm-password');
         Fortify::authenticateUsing(function (Request $request) {
             Validator::make($request->all(), [
                 'g-recaptcha-response' => ['required', new RecaptchaValidationRule],
-            ])->validate();    
+            ])->validate();
 
             $user = User::where(Fortify::username(), $request->{Fortify::username()})->first();
 
