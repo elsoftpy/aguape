@@ -43,6 +43,8 @@ class FortifyServiceProvider extends ServiceProvider
         Fortify::loginView('auth.login');
         Fortify::twoFactorChallengeView('auth.two-factor-challenge');
         Fortify::confirmPasswordView('auth.confirm-password');
+        Fortify::requestPasswordResetLinkView('auth.forgot-password');
+        Fortify::resetPasswordView('auth.reset-password');
         Fortify::authenticateUsing(function (Request $request) {
             Validator::make($request->all(), [
                 'g-recaptcha-response' => ['required', new RecaptchaValidationRule],

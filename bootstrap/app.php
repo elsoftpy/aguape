@@ -3,11 +3,15 @@
 use App\Exceptions\NodoInactivoException;
 use App\Http\Middleware\VerifyIngestaSignature;
 use App\Http\Middleware\VerifyIngestaToken;
+use App\Http\Middleware\VerifyRecaptcha;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Spatie\Permission\Middleware\PermissionMiddleware;
+use Spatie\Permission\Middleware\RoleMiddleware;
+use Spatie\Permission\Middleware\RoleOrPermissionMiddleware;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -18,11 +22,15 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
-            'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
-            'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class, 
-            'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
+            'role' => RoleMiddleware::class,
+            'permission' => PermissionMiddleware::class,
+            'role_or_permission' => RoleOrPermissionMiddleware::class,
             'ingesta.token' => VerifyIngestaToken::class,
             'ingesta.signature' => VerifyIngestaSignature::class,
+        ]);
+
+        $middleware->web(append: [
+            VerifyRecaptcha::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
@@ -30,7 +38,7 @@ return Application::configure(basePath: dirname(__DIR__))
             fn (Request $request) => $request->is('api/*'),
         );
 
-        $exceptions->render(function (NodoInactivoException $e, Request $request){
+        $exceptions->render(function (NodoInactivoException $e, Request $request) {
             Log::channel('ingesta')->warning('rechazado_nodo_inactivo', [
                 'codigo' => $e->codigoNodo,
             ]);

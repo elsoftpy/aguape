@@ -28,10 +28,15 @@
             autocomplete="current-password"
         />
 
-        <x-checkbox name="remember" label="Recordarme en este dispositivo" color="cyan" />
-
-        {{-- "¿Olvidaste tu contraseña?" queda pendiente: la vista de recuperación
-        (Fortify::requestPasswordResetLinkView) todavía no está construida. --}}
+        
+        <div class="flex items-center justify-between">
+            
+            <x-checkbox name="remember" label="Recordarme en este dispositivo" color="cyan" />
+            
+            <a href="{{ route('password.request') }}" class="text-xs font-semibold text-text-secondary underline">
+                ¿Olvidaste tu contraseña?
+            </a>
+        </div>
 
         <div class="flex flex-col items-center">
             <script src="https://www.google.com/recaptcha/api.js" async defer></script>
