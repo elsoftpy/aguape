@@ -11,9 +11,6 @@ use Spatie\Permission\PermissionRegistrar;
 
 class RolesAndPermissionsSeeder extends Seeder
 {
-    /**
-     * Run the database seeds.
-     */
     public function run(): void
     {
         app(PermissionRegistrar::class)->forgetCachedPermissions();
@@ -30,6 +27,7 @@ class RolesAndPermissionsSeeder extends Seeder
             PermissionsEnum::VerDashboard->value,
             PermissionsEnum::GestionarUmbrales->value,
             PermissionsEnum::GestionarNodos->value,
+            PermissionsEnum::GestionarPotreros->value,
             PermissionsEnum::GestionarAlertas->value,
         ]);
 

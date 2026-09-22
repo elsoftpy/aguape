@@ -3,9 +3,11 @@
 use App\Enums\PermissionsEnum;
 use App\Livewire\Pages\Alertas;
 use App\Livewire\Pages\Dashboard;
+use App\Livewire\Pages\DetalleNodo;
 use App\Livewire\Pages\MiCuenta;
 use App\Livewire\Pages\Nodos;
 use App\Livewire\Pages\Umbrales;
+use App\Livewire\Pages\Zonas;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/dashboard');
@@ -13,6 +15,14 @@ Route::redirect('/', '/dashboard');
 Route::livewire('/dashboard', Dashboard::class)
     ->middleware(['auth', 'permission:'.PermissionsEnum::VerDashboard->value])
     ->name('dashboard');
+
+Route::livewire('/zonas', Zonas::class)
+    ->middleware(['auth', 'permission:'.PermissionsEnum::VerDashboard->value])
+    ->name('zonas');
+
+Route::livewire('/zonas/nodos/{nodo}', DetalleNodo::class)
+    ->middleware(['auth', 'permission:'.PermissionsEnum::VerDashboard->value])
+    ->name('zonas.nodo');
 
 Route::livewire('/alertas', Alertas::class)
     ->middleware(['auth', 'permission:'.PermissionsEnum::VerHistorialAlertas->value.'|'.PermissionsEnum::GestionarAlertas->value])

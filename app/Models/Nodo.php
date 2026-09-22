@@ -2,13 +2,15 @@
 
 namespace App\Models;
 
+use Carbon\CarbonInterface;
+use Database\Factories\NodoFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
 use OwenIt\Auditing\Auditable;
+use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
 
 #[Fillable([
     'establecimiento_id',
@@ -21,15 +23,22 @@ use OwenIt\Auditing\Auditable;
 ])]
 class Nodo extends Model implements AuditableContract
 {
-    /** @use HasFactory<\Database\Factories\NodoFactory> */
+    /** @use HasFactory<NodoFactory> */
     use Auditable, HasFactory;
 
-    protected function casts(): array 
+    protected function casts(): array
     {
         return [
             'activo' => 'boolean',
             'instalado_en' => 'datetime',
         ];
+    }
+
+    public function estaTransmitiendo(?CarbonInterface $ultimaLectura): bool
+    {
+        return $this->activo
+            && $ultimaLectura !== null
+            && $ultimaLectura->gte(now()->subMinutes($this->intervalo_transmision_minutos * 2));
     }
 
     public function establecimiento(): BelongsTo

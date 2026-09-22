@@ -119,7 +119,7 @@
         </div>
 
         <x-slot:footer>
-            <x-button text="Cancelar" wire:click="$set('mostrarModal', false)" />
+            <x-button text="Cancelar" color="red" wire:click="$set('mostrarModal', false)" />
             <x-button text="Guardar" wire:click="guardar" />
         </x-slot:footer>
     </x-modal>

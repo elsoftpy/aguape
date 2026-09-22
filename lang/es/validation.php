@@ -197,6 +197,7 @@ return [
         'potreroId' => 'zona / potrero',
         'intervaloTransmisionMinutos' => 'intervalo de transmisión',
         'activo' => 'estado activo',
+        'hectareas' => 'superficie',
     ],
 
 ];
