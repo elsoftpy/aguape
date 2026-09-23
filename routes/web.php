@@ -1,16 +1,23 @@
 <?php
 
 use App\Enums\PermissionsEnum;
+use App\Http\Controllers\CrearPasswordController;
 use App\Livewire\Pages\Alertas;
 use App\Livewire\Pages\Dashboard;
 use App\Livewire\Pages\DetalleNodo;
 use App\Livewire\Pages\MiCuenta;
 use App\Livewire\Pages\Nodos;
 use App\Livewire\Pages\Umbrales;
+use App\Livewire\Pages\Usuarios;
 use App\Livewire\Pages\Zonas;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/dashboard');
+
+Route::middleware('guest')->group(function () {
+    Route::get('/crear-password/{user}', [CrearPasswordController::class, 'show'])->name('password.create');
+    Route::post('/crear-password/{user}', [CrearPasswordController::class, 'store'])->name('password.store');
+});
 
 Route::livewire('/dashboard', Dashboard::class)
     ->middleware(['auth', 'permission:'.PermissionsEnum::VerDashboard->value])
@@ -35,6 +42,10 @@ Route::livewire('/umbrales', Umbrales::class)
 Route::livewire('/nodos', Nodos::class)
     ->middleware(['auth', 'permission:'.PermissionsEnum::GestionarNodos->value])
     ->name('nodos');
+
+Route::livewire('/usuarios', Usuarios::class)
+    ->middleware(['auth', 'permission:'.PermissionsEnum::GestionarUsuarios->value])
+    ->name('usuarios');
 
 Route::livewire('/mi-cuenta', MiCuenta::class)
     ->middleware(['auth', 'password.confirm'])
