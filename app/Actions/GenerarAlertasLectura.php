@@ -33,12 +33,14 @@ class GenerarAlertasLectura
                 continue;
             }
 
-            $alertasGeneradas[] = Alerta::query()->create([
-                'lectura_id' => $lectura->id,
-                'umbral_id' => $umbral->id,
-                'nodo_id' => $lectura->nodo_id,
-                'variable_id' => $lectura->variable_id,
-            ]);
+            $alerta = Alerta::query()->firstOrCreate(
+                ['lectura_id' => $lectura->id, 'umbral_id' => $umbral->id],
+                ['nodo_id' => $lectura->nodo_id, 'variable_id' => $lectura->variable_id],
+            );
+
+            if ($alerta->wasRecentlyCreated) {
+                $alertasGeneradas[] = $alerta;
+            }
         }
 
         if ($alertasGeneradas === []) {

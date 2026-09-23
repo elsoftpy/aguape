@@ -12,13 +12,17 @@ use App\Rules\RecaptchaValidationRule;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Laravel\Fortify\Actions\RedirectIfTwoFactorAuthenticatable;
+use Laravel\Fortify\Contracts\FailedPasswordResetLinkRequestResponse as FailedPasswordResetLinkRequestResponseContract;
 use Laravel\Fortify\Fortify;
+use Laravel\Fortify\Http\Responses\FailedPasswordResetLinkRequestResponse;
+use Laravel\Fortify\Http\Responses\SuccessfulPasswordResetLinkRequestResponse;
 
 class FortifyServiceProvider extends ServiceProvider
 {
@@ -45,6 +49,11 @@ class FortifyServiceProvider extends ServiceProvider
         Fortify::confirmPasswordView('auth.confirm-password');
         Fortify::requestPasswordResetLinkView('auth.forgot-password');
         Fortify::resetPasswordView('auth.reset-password');
+        $this->app->bind(FailedPasswordResetLinkRequestResponseContract::class, function ($app, array $parametros) {
+            return in_array($parametros['status'], [Password::INVALID_USER, Password::RESET_THROTTLED], true)
+                ? new SuccessfulPasswordResetLinkRequestResponse(Password::RESET_LINK_SENT)
+                : new FailedPasswordResetLinkRequestResponse($parametros['status']);
+        });
         Fortify::authenticateUsing(function (Request $request) {
             Validator::make($request->all(), [
                 'g-recaptcha-response' => ['required', new RecaptchaValidationRule],
@@ -58,7 +67,7 @@ class FortifyServiceProvider extends ServiceProvider
 
             if ($user->status !== UserStatus::Activo) {
                 throw ValidationException::withMessages([
-                    Fortify::username() => __('Esta cuenta está inactiva, Contactá al administrador del sistema.'),
+                    Fortify::username() => __('Esta cuenta está inactiva. Contactá al administrador del sistema.'),
                 ]);
             }
 

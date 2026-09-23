@@ -125,8 +125,12 @@ class Nodos extends Component
             return;
         }
 
+        if ($this->tieneLecturas($nodo)) {
+            return;
+        }
+
         $this->dialog()
-            ->question('¿Eliminar este nodo?', 'También se eliminarán sus lecturas, umbrales y alertas asociadas. Esta acción no se puede deshacer.')
+            ->question('¿Eliminar este nodo?', 'Esta acción no se puede deshacer.')
             ->confirm('Sí, eliminar', 'eliminar', $nodo->id)
             ->cancel('Cancelar')
             ->send();
@@ -140,9 +144,26 @@ class Nodos extends Component
             return;
         }
 
-        Nodo::query()->findOrFail($id)->delete();
+        $nodo = Nodo::query()->findOrFail($id);
+
+        if ($this->tieneLecturas($nodo)) {
+            return;
+        }
+
+        $nodo->delete();
 
         $this->toast()->success('Eliminado', 'El nodo fue eliminado.')->send();
+    }
+
+    private function tieneLecturas(Nodo $nodo): bool
+    {
+        if (! $nodo->lecturas()->exists()) {
+            return false;
+        }
+
+        $this->toast()->error('No se puede eliminar', 'El nodo tiene mediciones registradas. Para retirarlo, desactivalo.')->send();
+
+        return true;
     }
 
     private function resetearFormulario(): void

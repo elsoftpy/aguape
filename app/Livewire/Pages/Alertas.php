@@ -35,6 +35,12 @@ class Alertas extends Component
 
     public function confirmarRevision(Alerta $alerta): void
     {
+        if ($alerta->estado === EstadoAlerta::Atendida) {
+            $this->avisarYaRevisada($alerta);
+
+            return;
+        }
+
         $this->dialog()
             ->question('¿Marcar como revisada?')
             ->confirm('Sí, marcar', 'marcarComoRevisada', $alerta->id)
@@ -50,13 +56,32 @@ class Alertas extends Component
             return;
         }
 
-        $alerta->update([
-            'estado' => EstadoAlerta::Atendida,
-            'atendida_por' => auth()->id(),
-            'atendida_en' => now(),
-        ]);
+        $marcadas = Alerta::query()
+            ->whereKey($alerta->id)
+            ->where('estado', EstadoAlerta::Pendiente)
+            ->update([
+                'estado' => EstadoAlerta::Atendida,
+                'atendida_por' => auth()->id(),
+                'atendida_en' => now(),
+            ]);
 
         unset($this->totalPendientes, $this->totalRevisadas);
+
+        if ($marcadas === 0) {
+            $this->avisarYaRevisada($alerta->fresh());
+
+            return;
+        }
+
+        $this->toast()->success('Alerta revisada', 'La alerta se marcó como revisada.')->send();
+    }
+
+    private function avisarYaRevisada(Alerta $alerta): void
+    {
+        $responsable = $alerta->atendidaPor?->name ?? 'otro usuario';
+        $momento = $alerta->atendida_en?->format('d/m/Y H:i') ?? '—';
+
+        $this->toast()->info('Alerta ya revisada', "La revisó {$responsable} el {$momento}.")->send();
     }
 
     /**
