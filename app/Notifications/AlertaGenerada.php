@@ -3,10 +3,13 @@
 namespace App\Notifications;
 
 use App\Models\Alerta;
+use DateTimeInterface;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class AlertaGenerada extends Notification implements ShouldQueue
 {
@@ -20,6 +23,24 @@ class AlertaGenerada extends Notification implements ShouldQueue
     public function __construct(public readonly Alerta $alerta)
     {
         $this->alerta->loadMissing(['lectura', 'nodo.potrero', 'variable', 'umbral']);
+    }
+
+    public function backoff(): array
+    {
+        return [60, 300, 900];
+    }
+
+    public function retryUntil(): DateTimeInterface
+    {
+        return now()->addHours(24);
+    }
+
+    public function failed(Throwable $exception): void
+    {
+        Log::error('No se pudo notificar la alerta por correo.', [
+            'alerta_id' => $this->alerta->id,
+            'error' => $exception->getMessage(),
+        ]);
     }
 
     /**

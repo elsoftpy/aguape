@@ -10,22 +10,11 @@ use App\Models\Umbral;
 use App\Models\User;
 use App\Notifications\AlertaGenerada;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 
 class GenerarAlertasLectura
 {
-    /**
-     * Compara una lectura contra los umbrales activos de su variable (RF09)
-     * y genera una `Alerta` por cada uno que se incumpla, notificando por
-     * correo (RF10) a quienes pueden gestionar alertas (Administrador y
-     * Operador. Visor es de solo lectura.
-     *
-     * Un umbral por nodo (`umbrales.nodo_id`) tiene prioridad sobre uno
-     * global (`nodo_id` nulo) para la misma variable+tipo; se resuelve por
-     * separado para `minimo` y `maximo`, así que una lectura puede violar
-     * ambos a la vez (dos alertas) si están configurados.
-     */
-
     /**
      * Invoke the class instance.
      */
@@ -58,8 +47,18 @@ class GenerarAlertasLectura
 
         $destinatarios = $this->destinatarios();
 
+        if ($destinatarios->isEmpty()) {
+            Log::warning('Alerta sin destinatarios: no se envió por correo.', [
+                'alerta_ids' => array_map(fn (Alerta $alerta) => $alerta->id, $alertasGeneradas),
+            ]);
+
+            return;
+        }
+
+        $correos = $destinatarios->mapWithKeys(fn (User $user) => [$user->email => $user->name])->all();
+
         foreach ($alertasGeneradas as $alerta) {
-            Notification::send($destinatarios, new AlertaGenerada($alerta));
+            Notification::route('mail', $correos)->notify(new AlertaGenerada($alerta));
         }
 
     }

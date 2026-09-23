@@ -43,6 +43,12 @@ class Umbrales extends Component
         $minimo = $this->analizarDecimal($fila['minimo']);
         $maximo = $this->analizarDecimal($fila['maximo']);
 
+        if ($minimo === null && $maximo === null) {
+            $this->toast()->error('Sin límites', 'Ingresá al menos un valor mínimo o máximo.')->send();
+
+            return;
+        }
+
         if ($minimo === false || $maximo === false) {
             $this->toast()->error('Valor inválido', 'Revisá el formato de los números ingresados.')->send();
 
@@ -55,20 +61,35 @@ class Umbrales extends Component
             return;
         }
 
-        foreach ([TipoUmbral::Minimo->value => $minimo, TipoUmbral::Maximo->value => $maximo] as $tipo => $valor) {
-            if ($valor === null) {
-                Umbral::query()
-                    ->where('variable_id', $variableId)
-                    ->whereNull('nodo_id')
-                    ->where('tipo', $tipo)
-                    ->delete();
+        $limites = [
+            TipoUmbral::Minimo->value => ['valor' => $minimo, 'activo' => $fila['minimoActivo']],
+            TipoUmbral::Maximo->value => ['valor' => $maximo, 'activo' => $fila['maximoActivo']],
+        ];
 
+        $existentes = $this->umbralesGlobales($variableId);
+
+        foreach ($limites as $tipo => $limite) {
+            if ($limite['valor'] === null && $existentes->has($tipo)) {
+                $this->toast()->error(
+                    'No se puede quitar el límite',
+                    'El límite '.($tipo === TipoUmbral::Minimo->value ? 'mínimo' : 'máximo').' ya está guardado. Para dejar de usarlo, desactivalo.',
+                )->send();
+
+                $this->filas[$variableId][$tipo] = $this->formatearDecimal($existentes->get($tipo)->valor);
+                $this->filas[$variableId][$tipo.'Activo'] = $existentes->get($tipo)->activo;
+
+                return;
+            }
+        }
+
+        foreach ($limites as $tipo => $limite) {
+            if ($limite['valor'] === null) {
                 continue;
             }
 
             Umbral::query()->updateOrCreate(
                 ['variable_id' => $variableId, 'nodo_id' => null, 'tipo' => $tipo],
-                ['valor' => $valor, 'activo' => $fila['activo']],
+                ['valor' => $limite['valor'], 'activo' => $limite['activo']],
             );
         }
 
@@ -78,15 +99,11 @@ class Umbrales extends Component
     }
 
     /**
-     * @return array{minimo: string|null, maximo: string|null, activo: bool}
+     * @return array{minimo: string|null, maximo: string|null, minimoActivo: bool, maximoActivo: bool}
      */
     private function cargarFila(Variable $variable): array
     {
-        $umbrales = Umbral::query()
-            ->where('variable_id', $variable->id)
-            ->whereNull('nodo_id')
-            ->get()
-            ->keyBy(fn (Umbral $umbral) => $umbral->tipo->value);
+        $umbrales = $this->umbralesGlobales($variable->id);
 
         $minimo = $umbrales->get(TipoUmbral::Minimo->value);
         $maximo = $umbrales->get(TipoUmbral::Maximo->value);
@@ -94,8 +111,21 @@ class Umbrales extends Component
         return [
             'minimo' => $this->formatearDecimal($minimo?->valor),
             'maximo' => $this->formatearDecimal($maximo?->valor),
-            'activo' => (bool) ($minimo?->activo ?? $maximo?->activo ?? false),
+            'minimoActivo' => $minimo?->activo ?? true,
+            'maximoActivo' => $maximo?->activo ?? true,
         ];
+    }
+
+    /**
+     * @return Collection<string, Umbral>
+     */
+    private function umbralesGlobales(int $variableId): Collection
+    {
+        return Umbral::query()
+            ->where('variable_id', $variableId)
+            ->whereNull('nodo_id')
+            ->get()
+            ->keyBy(fn (Umbral $umbral) => $umbral->tipo->value);
     }
 
     /**

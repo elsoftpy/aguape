@@ -2,7 +2,10 @@
 
 namespace App\Providers;
 
+use App\Notifications\AlertaGenerada;
 use Illuminate\Auth\Middleware\RequirePassword;
+use Illuminate\Notifications\Events\NotificationSent;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Number;
 use Illuminate\Support\ServiceProvider;
 use Livewire\Livewire;
@@ -30,5 +33,11 @@ class AppServiceProvider extends ServiceProvider
         Livewire::addPersistentMiddleware([
             RequirePassword::class,
         ]);
+
+        Event::listen(function (NotificationSent $event): void {
+            if ($event->notification instanceof AlertaGenerada) {
+                $event->notification->alerta->update(['notificada_en' => now()]);
+            }
+        });
     }
 }
