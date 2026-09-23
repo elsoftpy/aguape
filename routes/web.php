@@ -5,6 +5,7 @@ use App\Http\Controllers\CrearPasswordController;
 use App\Livewire\Pages\Alertas;
 use App\Livewire\Pages\Dashboard;
 use App\Livewire\Pages\DetalleNodo;
+use App\Livewire\Pages\Historial;
 use App\Livewire\Pages\MiCuenta;
 use App\Livewire\Pages\Nodos;
 use App\Livewire\Pages\Umbrales;
@@ -34,6 +35,10 @@ Route::livewire('/zonas/nodos/{nodo}', DetalleNodo::class)
 Route::livewire('/alertas', Alertas::class)
     ->middleware(['auth', 'permission:'.PermissionsEnum::VerHistorialAlertas->value.'|'.PermissionsEnum::GestionarAlertas->value])
     ->name('alertas');
+
+Route::livewire('/historial', Historial::class)
+    ->middleware(['auth', 'permission:'.PermissionsEnum::VerDashboard->value])
+    ->name('historial');
 
 Route::livewire('/umbrales', Umbrales::class)
     ->middleware(['auth', 'permission:'.PermissionsEnum::GestionarUmbrales->value])

@@ -4,9 +4,11 @@ namespace App\Livewire\Pages;
 
 use App\Enums\EstadoAlerta;
 use App\Enums\PermissionsEnum;
+use App\Livewire\Concerns\FiltraPorNodoVariableFecha;
 use App\Models\Alerta;
 use App\Models\Establecimiento;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
@@ -19,7 +21,7 @@ use TallStackUi\Traits\Interactions;
 #[Title('Alertas')]
 class Alertas extends Component
 {
-    use Interactions, WithPagination;
+    use FiltraPorNodoVariableFecha, Interactions, WithPagination;
 
     /**
      * Pestaña activa: `pendiente` (Activas) o `atendida` (Revisadas).
@@ -90,7 +92,7 @@ class Alertas extends Component
     #[Computed]
     public function alertas(): LengthAwarePaginator
     {
-        return Alerta::query()
+        return $this->alertasFiltradas()
             ->where('estado', $this->tab)
             ->with(['nodo.potrero', 'variable', 'lectura', 'umbral', 'atendidaPor'])
             ->latest('created_at')
@@ -100,13 +102,18 @@ class Alertas extends Component
     #[Computed]
     public function totalPendientes(): int
     {
-        return Alerta::query()->where('estado', EstadoAlerta::Pendiente)->count();
+        return $this->alertasFiltradas()->where('estado', EstadoAlerta::Pendiente)->count();
     }
 
     #[Computed]
     public function totalRevisadas(): int
     {
-        return Alerta::query()->where('estado', EstadoAlerta::Atendida)->count();
+        return $this->alertasFiltradas()->where('estado', EstadoAlerta::Atendida)->count();
+    }
+
+    private function alertasFiltradas(): Builder
+    {
+        return $this->aplicarFiltros(Alerta::query(), 'created_at');
     }
 
     #[Computed]

@@ -2,6 +2,7 @@
     $navItems = collect([
         ['label' => 'Panel general', 'icon' => 'squares-2x2', 'route' => 'dashboard', 'permission' => null, 'group' => 'main'],
         ['label' => 'Zonas / potreros', 'icon' => 'map', 'route' => 'zonas', 'permission' => \App\Enums\PermissionsEnum::VerDashboard, 'group' => 'main'],
+         ['label' => 'Historial', 'icon' => 'clock', 'route' => 'historial', 'permission' => \App\Enums\PermissionsEnum::VerDashboard, 'group' => 'main'],
         ['label' => 'Alertas', 'icon' => 'bell-alert', 'route' => 'alertas', 'permission' => [\App\Enums\PermissionsEnum::VerHistorialAlertas, \App\Enums\PermissionsEnum::GestionarAlertas], 'group' => 'main'],
         /* ['label' => 'Reportes', 'icon' => 'chart-bar', 'route' => null, 'permission' => null, 'group' => 'main'], */
         ['label' => 'Nodos LoRa', 'icon' => 'cpu-chip', 'route' => 'nodos', 'permission' => \App\Enums\PermissionsEnum::GestionarNodos, 'group' => 'settings'],
