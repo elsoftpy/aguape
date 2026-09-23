@@ -48,16 +48,27 @@
                             class="space-y-6 pt-5"
                         >
                             @foreach ($grupo['nodos'] as $item)
-                                @php $nodo = $item['nodo']; @endphp
+                                @php 
+                                    $nodo = $item['nodo'];
+                                    $transmitiendo = $nodo->estaTransmitiendo($item['ultimaLectura']);
+                                @endphp
 
                                 <div wire:key="nodo-{{ $nodo->id }}">
                                     <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
                                         <div class="flex items-center gap-2.5">
-                                            <span class="size-2 rounded-full {{ $nodo->activo ? 'bg-success' : 'bg-text-tertiary' }}" title="{{ $nodo->activo ? 'Activo' : 'Inactivo' }}"></span>
+                                            <span
+                                                class="size-2 rounded-full {{ $transmitiendo ? 'bg-success' : ($nodo->activo ? 'bg-warning' : 'bg-text-tertiary') }}"
+                                                title="{{ $transmitiendo ? 'Transmitiendo' : ($nodo->activo ? 'Sin señal' : 'Inactivo') }}"
+                                            ></span>
                                             <span class="text-sm font-semibold text-text-primary">{{ $nodo->nombre }}</span>
                                             <span class="font-mono text-xs text-text-tertiary">
                                                 {{ $item['ultimaLectura']?->diffForHumans() ?? 'Sin lecturas' }}
                                             </span>
+                                            @unless ($transmitiendo)
+                                                <span class="rounded-full border px-2 py-0.5 text-[10px] font-bold tracking-wide uppercase {{ $nodo->activo ? 'border-warning/40 bg-warning-dim text-warning' : 'border-border bg-surface text-text-tertiary' }}">
+                                                    {{ $nodo->activo ? 'Sin señal' : 'Inactivo' }}
+                                                </span>
+                                            @endunless
                                         </div>
 
                                         <span class="font-mono text-xs text-text-tertiary">
