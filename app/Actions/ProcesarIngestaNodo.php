@@ -25,7 +25,7 @@ class ProcesarIngestaNodo
             throw new NodoInactivoException($nodo->codigo);
         }
 
-        $medidoEn = CarbonImmutable::parse($datos['medido_en']);
+        $medidoEn = CarbonImmutable::parse($datos['medido_en'])->utc();
         $valoresPorClave = collect($datos['lecturas'])->pluck('valor', 'variable');
 
         DB::transaction(function () use ($nodo, $datos, $medidoEn, $valoresPorClave): void {
