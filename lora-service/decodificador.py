@@ -1,18 +1,17 @@
 """
 Decodificador del protocolo binario Aguape v1 (primera versión del lora-service).
 
-Lee las líneas del gateway (receptor v1.5) por el puerto serie, decodifica las
-tramas RX|<rssi>|<hex>, guarda:
+Lee las tramas del E220 conectado al UART de la Raspberry Pi (/dev/ttyAMA0),
+las decodifica y guarda:
   - log_crudo.txt   : todas las líneas con fecha y hora (sirve para reproducir la prueba)
   - lecturas.csv    : una fila por trama decodificada
 y muestra un resumen de métricas cada 10 minutos y al terminar (Ctrl+C).
 
 Uso:
-  python decodificador.py COM5                       # en vivo (Windows)
-  python decodificador.py /dev/ttyUSB0               # en vivo (Linux / Raspberry Pi)
-  python decodificador.py --archivo log_crudo.txt    # reproducir una prueba guardada
+  python3 decodificador.py /dev/ttyAMA0 --salida /var/lib/aguape     # en vivo
+  python3 decodificador.py --archivo log_crudo.txt --salida datos/banco   # reproducir
 
-Requiere: pip install pyserial
+Requiere: python3-serial (apt) en la Raspberry Pi
 """
 
 import argparse
@@ -191,16 +190,29 @@ def procesar(raw, ts, ahora, met, escritor):
         print(f"{ts} {texto}")
 
 
-def fuente_serie(puerto):
-    import serial
-    with serial.Serial(puerto, 115200, timeout=1) as ser:
-        while True:
-            raw = ser.readline()
-            if raw:
-                ahora = time.time()
-                ts = datetime.datetime.now().isoformat(timespec="milliseconds")
-                yield raw, ts, ahora, True
+def fuente_e220(puerto):
+    """Lee el E220 conectado al UART de la Raspberry Pi.
 
+    El módulo entrega cada trama recibida como una ráfaga continua de bytes,
+    seguida del byte de RSSI (REG3, bit 7). Una pausa de más de 50 ms marca el
+    fin de la trama. Se devuelve en el formato de línea del gateway ESP32
+    (RX|<rssi>|<hex>) para conservar el log crudo y el modo --archivo.
+    """
+    import serial
+    with serial.Serial(puerto, 9600, timeout=0.05) as ser:
+        ser.reset_input_buffer()
+        buf = b""
+        while True:
+            b = ser.read(64)
+            if b:
+                buf += b
+                continue
+            if len(buf) >= 2:
+                rssi = -(256 - buf[-1])
+                linea = f"RX|{rssi}|{buf[:-1].hex().upper()}".encode()
+                ts = datetime.datetime.now().isoformat(timespec="milliseconds")
+                yield linea, ts, time.time(), True
+            buf = b""
 
 def fuente_archivo(ruta):
     with open(ruta, "rb") as f:
@@ -217,17 +229,21 @@ def fuente_archivo(ruta):
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("puerto", nargs="?", help="puerto serie del gateway (COM5, /dev/ttyUSB0)")
+    ap.add_argument("puerto", nargs="?", help="puerto serie del E220 (/dev/ttyAMA0)")
     ap.add_argument("--archivo", help="reproducir un log_crudo.txt guardado")
+    ap.add_argument("--salida", default=".", help="carpeta para log_crudo.txt y lecturas.csv")
     args = ap.parse_args()
     if not args.puerto and not args.archivo:
         ap.error("indicá un puerto o --archivo")
 
+    os.makedirs(args.salida, exist_ok=True)
     met = Metricas()
-    fuente = fuente_archivo(args.archivo) if args.archivo else fuente_serie(args.puerto)
+    fuente = fuente_archivo(args.archivo) if args.archivo else fuente_e220(args.puerto)
     sufijo = "_reproduccion" if args.archivo else ""
-    with open(f"lecturas{sufijo}.csv", "a", newline="", encoding="utf-8") as fcsv, \
-         open("log_crudo.txt", "ab") if not args.archivo else open(os.devnull, "wb") as flog:
+    ruta_csv = os.path.join(args.salida, f"lecturas{sufijo}.csv")
+    ruta_log = os.path.join(args.salida, "log_crudo.txt")
+    with open(ruta_csv, "a", newline="", encoding="utf-8") as fcsv, \
+         open(ruta_log, "ab") if not args.archivo else open(os.devnull, "wb") as flog:
         escritor = csv.writer(fcsv)
         if fcsv.tell() == 0:
             escritor.writerow(["fecha_hora", "rssi_dbm", "nodo", "tipo", "secuencia", "banderas",
