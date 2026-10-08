@@ -16,7 +16,7 @@ import serial
 
 PUERTO_SERIAL = os.environ.get("LORA_SERIAL_PORT", "/dev/ttyUSB0")
 BAUDRATE = int(os.environ.get("LORA_BAUDRATE", "9600"))
-INGESTA_URL = os.environ.get("INGESTA_URL", "http://localhost/api/ingesta")
+INGESTA_URL = os.environ.get("INGESTA_URL", "http://localhost:8081/api/ingesta")
 INGESTA_TOKEN = os.environ.get("INGESTA_TOKEN", "")
 INGESTA_HMAC_SECRET = os.environ.get("INGESTA_HMAC_SECRET", "")
 
@@ -31,7 +31,7 @@ def decodificar_trama(cruda: bytes) -> dict:
         "N-1|87|temperatura_aire=24.3;humedad_aire=61.2;nivel_agua=132.0"
          codigo  bateria  lecturas separadas por `;`, cada una `variable=valor`
     """
-    texto = cruda.decode("ascii").strip()
+    texto = cruda.decode("ascii", errors="ignore").strip()
     codigo, nivel_bateria, lecturas_crudas = texto.split("|")
 
     lecturas = []
