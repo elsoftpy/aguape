@@ -119,7 +119,7 @@ class DetalleNodo extends Component
     #[Computed]
     public function establecimiento(): ?Establecimiento
     {
-        return Establecimiento::query()->first();
+        return $this->nodo->establecimiento;
     }
 
     private function variableBateria(): ?Variable

@@ -15,6 +15,7 @@ use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 use TallStackUi\Traits\Interactions;
 
@@ -32,10 +33,29 @@ class Zonas extends Component
 
     public bool $mostrarModal = false;
 
+    #[Url(as: 'establecimiento')]
+    public string $establecimientoId = '';
+
+    public function mount(): void
+    {
+        $this->normalizarEstablecimiento();
+    }
+
+    public function updatedEstablecimientoId(): void
+    {
+        $this->normalizarEstablecimiento();
+    }
+
     public function abrirCreacion(): void
     {
         if (! auth()->user()->can(PermissionsEnum::GestionarPotreros->value)) {
             $this->toast()->error('Sin permiso', 'No tenés permiso para registrar potreros.')->send();
+
+            return;
+        }
+
+        if ($this->establecimiento === null) {
+            $this->toast()->error('Sin establecimiento', 'Registrá un establecimiento antes de cargar potreros.')->send();
 
             return;
         }
@@ -68,7 +88,16 @@ class Zonas extends Component
             return;
         }
 
-        $establecimientoId = $this->establecimiento()?->id;
+        // Al editar, el potrero conserva su establecimiento.
+        $establecimientoId = $this->editandoId
+            ? Potrero::query()->findOrFail($this->editandoId)->establecimiento_id
+            : $this->establecimiento?->id;
+
+        if ($establecimientoId === null) {
+            $this->toast()->error('Sin establecimiento', 'Registrá un establecimiento antes de cargar potreros.')->send();
+
+            return;
+        }
 
         $hectareas = $this->analizarDecimal($this->hectareas);
 
@@ -141,10 +170,20 @@ class Zonas extends Component
         $this->resetValidation();
     }
 
+    private function normalizarEstablecimiento(): void
+    {
+        if ($this->establecimientoId === '' || ! Establecimiento::query()->whereKey($this->establecimientoId)->exists()) {
+            $this->establecimientoId = (string) (Establecimiento::query()->orderBy('nombre')->value('id') ?? '');
+        }
+
+        unset($this->establecimiento);
+    }
+
     #[Computed]
     public function potreros(): Collection
     {
         return Potrero::query()
+            ->where('establecimiento_id', $this->establecimientoId)
             ->with(['nodos' => fn ($query) => $this->conUltimaLectura($query)->orderBy('nombre')])
             ->orderBy('nombre')
             ->get();
@@ -153,7 +192,7 @@ class Zonas extends Component
     #[Computed]
     public function nodosSinZona(): Collection
     {
-        return $this->conUltimaLectura(Nodo::query()->whereNull('potrero_id'))
+        return $this->conUltimaLectura(Nodo::query()->where('establecimiento_id', $this->establecimientoId)->whereNull('potrero_id'))
             ->orderBy('nombre')
             ->get();
     }
@@ -161,7 +200,20 @@ class Zonas extends Component
     #[Computed]
     public function establecimiento(): ?Establecimiento
     {
-        return Establecimiento::query()->first();
+        return $this->establecimientoId !== ''
+            ? Establecimiento::query()->find($this->establecimientoId)
+            : null;
+    }
+
+    /**
+     * @return array<int, array{label: string, value: int}>
+     */
+    #[Computed]
+    public function establecimientoOptions(): array
+    {
+        return Establecimiento::query()->orderBy('nombre')->get()
+            ->map(fn (Establecimiento $establecimiento) => ['label' => $establecimiento->nombre, 'value' => $establecimiento->id])
+            ->all();
     }
 
     private function conUltimaLectura(Builder|HasMany $query): Builder|HasMany

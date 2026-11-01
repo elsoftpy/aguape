@@ -24,7 +24,7 @@
                                 <span class="font-mono text-xs text-text-tertiary">{{ $nodo->codigo }}</span>
                             </p>
                             <p class="truncate text-xs text-text-tertiary">
-                                {{ $nodo->potrero?->nombre ?? 'Sin zona asignada' }}
+                                {{ $nodo->establecimiento->nombre }} · {{ $nodo->potrero?->nombre ?? 'Sin zona asignada' }}
                             </p>
                         </div>
                     </div>
@@ -101,6 +101,12 @@
             <x-input wire:model="nombre" label="Nombre" placeholder="Corral central" />
 
             <x-date wire:model="instaladoEn" label="Fecha de instalación" format="DD/MM/YYYY" :max-date="today()" />
+
+            <x-select.native
+                wire:model.live="establecimientoId"
+                label="Establecimiento"
+                :options="$this->establecimientoOptions"
+            />
 
             <x-select.native
                 wire:model="potreroId"

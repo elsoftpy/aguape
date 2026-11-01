@@ -14,6 +14,16 @@ class Establecimiento extends Model implements AuditableContract
 {
     use Auditable, HasFactory;
 
+    /**
+     * Solo devuelve el establecimiento si hay uno solo registrado.
+     */
+    public static function unicoRegistrado(): ?self
+    {
+        $establecimientos = self::query()->limit(2)->get();
+
+        return $establecimientos->count() === 1 ? $establecimientos->first() : null;
+    }
+
     public function potreros(): HasMany
     {
         return $this->hasMany(Potrero::class);

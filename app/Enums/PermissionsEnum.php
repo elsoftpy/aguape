@@ -14,5 +14,6 @@ enum PermissionsEnum: string
     case GestionarDestinatarios = 'gestionar-destinatarios';
     case VerAuditoria = 'ver-auditoria';
     case GestionarVariables = 'gestionar-variables';
+    case GestionarEstablecimientos = 'gestionar-establecimientos';
     case GestionarFacturacion = 'gestionar-facturacion';
 }

@@ -195,6 +195,7 @@ return [
         'codigo' => 'código',
         'nombre' => 'nombre',
         'potreroId' => 'zona / potrero',
+        'establecimientoId' => 'establecimiento',
         'intervaloTransmisionMinutos' => 'intervalo de transmisión',
         'instaladoEn' => 'fecha de instalación',
         'clave' => 'clave',
@@ -202,6 +203,7 @@ return [
         'activo' => 'estado activo',
         'rol' => 'rol',
         'hectareas' => 'superficie',
+        'ubicacion' => 'ubicación',
     ],
 
 ];

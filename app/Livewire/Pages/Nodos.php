@@ -30,6 +30,8 @@ class Nodos extends Component
 
     public string $nombre = '';
 
+    public string $establecimientoId = '';
+
     /**
      * String, no `?int` — `<x-select.native>` siempre envía un string, y un
      * valor vacío ('') representa "sin zona asignada" (ver `potreroOptions()`).
@@ -71,12 +73,20 @@ class Nodos extends Component
         $this->editandoId = $nodo->id;
         $this->codigo = $nodo->codigo;
         $this->nombre = $nodo->nombre;
+        $this->establecimientoId = (string) $nodo->establecimiento_id;
         $this->potreroId = $nodo->potrero_id !== null ? (string) $nodo->potrero_id : '';
         $this->intervaloTransmisionMinutos = $nodo->intervalo_transmision_minutos;
         $this->instaladoEn = $nodo->instalado_en?->toDateString();
         $this->activo = $nodo->activo;
 
         $this->mostrarModal = true;
+    }
+
+    public function updatedEstablecimientoId(): void
+    {
+        if ($this->potreroId !== '' && ! $this->potreroPerteneceAlEstablecimiento()) {
+            $this->potreroId = '';
+        }
     }
 
     public function guardar(): void
@@ -89,13 +99,8 @@ class Nodos extends Component
 
         $potreroId = $this->potreroId === '' ? null : (int) $this->potreroId;
 
-        if ($potreroId !== null && ! Potrero::query()->whereKey($potreroId)->exists()) {
-            $this->addError('potreroId', 'La zona seleccionada no es válida.');
-
-            return;
-        }
-
         $datos = $this->validate([
+            'establecimientoId' => ['required', Rule::exists('establecimientos', 'id')],
             'codigo' => ['required', 'string', 'max:50', Rule::unique('nodos', 'codigo')->ignore($this->editandoId)],
             'nombre' => ['required', 'string', 'max:100'],
             'intervaloTransmisionMinutos' => ['required', 'integer', 'between:15,120'],
@@ -105,8 +110,14 @@ class Nodos extends Component
             'instaladoEn.before_or_equal' => 'La fecha de instalación no puede ser posterior a hoy.',
         ]);
 
+        if ($potreroId !== null && ! $this->potreroPerteneceAlEstablecimiento()) {
+            $this->addError('potreroId', 'La zona seleccionada no pertenece al establecimiento.');
+
+            return;
+        }
+
         $atributos = [
-            'establecimiento_id' => $this->establecimiento()?->id,
+            'establecimiento_id' => (int) $datos['establecimientoId'],
             'potrero_id' => $potreroId,
             'codigo' => $datos['codigo'],
             'nombre' => $datos['nombre'],
@@ -181,11 +192,20 @@ class Nodos extends Component
         $this->editandoId = null;
         $this->codigo = '';
         $this->nombre = '';
+        $this->establecimientoId = (string) (Establecimiento::unicoRegistrado()?->id ?? '');
         $this->potreroId = '';
         $this->intervaloTransmisionMinutos = 15;
         $this->instaladoEn = today()->toDateString();
         $this->activo = true;
         $this->resetValidation();
+    }
+
+    private function potreroPerteneceAlEstablecimiento(): bool
+    {
+        return Potrero::query()
+            ->whereKey($this->potreroId)
+            ->where('establecimiento_id', $this->establecimientoId)
+            ->exists();
     }
 
     /**
@@ -195,7 +215,7 @@ class Nodos extends Component
     public function nodos(): LengthAwarePaginator
     {
         return Nodo::query()
-            ->with(['potrero'])
+            ->with(['establecimiento', 'potrero'])
             ->orderBy('codigo')
             ->paginate(10);
     }
@@ -211,8 +231,22 @@ class Nodos extends Component
     {
         return [
             ['label' => 'Sin zona asignada', 'value' => ''],
-            ...Potrero::query()->orderBy('nombre')->get()
+            ...Potrero::query()->where('establecimiento_id', $this->establecimientoId)->orderBy('nombre')->get()
                 ->map(fn (Potrero $potrero) => ['label' => $potrero->nombre, 'value' => $potrero->id])
+                ->all(),
+        ];
+    }
+
+    /**
+     * @return array<int, array{label: string, value: int|string}>
+     */
+    #[Computed]
+    public function establecimientoOptions(): array
+    {
+        return [
+            ['label' => 'Elegí un establecimiento', 'value' => ''],
+            ...Establecimiento::query()->orderBy('nombre')->get()
+                ->map(fn (Establecimiento $establecimiento) => ['label' => $establecimiento->nombre, 'value' => $establecimiento->id])
                 ->all(),
         ];
     }
@@ -220,7 +254,7 @@ class Nodos extends Component
     #[Computed]
     public function establecimiento(): ?Establecimiento
     {
-        return Establecimiento::query()->first();
+        return Establecimiento::unicoRegistrado();
     }
 
     public function render()

@@ -12,7 +12,17 @@
             Potreros del establecimiento y los nodos asignados a cada uno. Entrá a un nodo para ver sus últimas lecturas y el historial de las últimas 6 horas.
         </p>
 
-        @if ($this->potreros->isEmpty() && $this->nodosSinZona->isEmpty())
+        @if (count($this->establecimientoOptions) > 1)
+            <div class="max-w-sm">
+                <x-select.native wire:model.live="establecimientoId" label="Establecimiento" :options="$this->establecimientoOptions" />
+            </div>
+        @endif
+
+        @if ($this->establecimiento === null)
+            <div class="rounded-[10px] border border-border bg-panel px-4 py-6 text-center text-sm text-text-tertiary">
+                No hay establecimientos registrados todavía.
+            </div>
+        @elseif ($this->potreros->isEmpty() && $this->nodosSinZona->isEmpty())
             <div class="rounded-[10px] border border-border bg-panel px-4 py-6 text-center text-sm text-text-tertiary">
                 No hay potreros registrados todavía.
             </div>

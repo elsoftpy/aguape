@@ -49,7 +49,7 @@ class MiCuenta extends Component
     #[Computed]
     public function establecimiento(): ?Establecimiento
     {
-        return Establecimiento::query()->first();
+        return Establecimiento::unicoRegistrado();
     }
 
     public function render()

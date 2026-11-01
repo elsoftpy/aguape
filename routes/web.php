@@ -7,6 +7,7 @@ use App\Livewire\Pages\Auditoria;
 use App\Livewire\Pages\Dashboard;
 use App\Livewire\Pages\Destinatarios;
 use App\Livewire\Pages\DetalleNodo;
+use App\Livewire\Pages\Establecimientos;
 use App\Livewire\Pages\Historial;
 use App\Livewire\Pages\MiCuenta;
 use App\Livewire\Pages\Nodos;
@@ -50,6 +51,10 @@ Route::livewire('/umbrales', Umbrales::class)
 Route::livewire('/nodos', Nodos::class)
     ->middleware(['auth', 'permission:'.PermissionsEnum::GestionarNodos->value])
     ->name('nodos');
+
+Route::livewire('/establecimientos', Establecimientos::class)
+    ->middleware(['auth', 'permission:'.PermissionsEnum::GestionarEstablecimientos->value])
+    ->name('establecimientos');
 
 Route::livewire('/variables', Variables::class)
     ->middleware(['auth', 'permission:'.PermissionsEnum::GestionarVariables->value])
