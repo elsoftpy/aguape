@@ -38,6 +38,11 @@ class Nodos extends Component
 
     public int $intervaloTransmisionMinutos = 15;
 
+    /**
+     * Fecha `YYYY-MM-DD` que envía `<x-date>`. Al crear arranca en hoy.
+     */
+    public ?string $instaladoEn = null;
+
     public bool $activo = true;
 
     public bool $mostrarModal = false;
@@ -68,6 +73,7 @@ class Nodos extends Component
         $this->nombre = $nodo->nombre;
         $this->potreroId = $nodo->potrero_id !== null ? (string) $nodo->potrero_id : '';
         $this->intervaloTransmisionMinutos = $nodo->intervalo_transmision_minutos;
+        $this->instaladoEn = $nodo->instalado_en?->toDateString();
         $this->activo = $nodo->activo;
 
         $this->mostrarModal = true;
@@ -93,7 +99,10 @@ class Nodos extends Component
             'codigo' => ['required', 'string', 'max:50', Rule::unique('nodos', 'codigo')->ignore($this->editandoId)],
             'nombre' => ['required', 'string', 'max:100'],
             'intervaloTransmisionMinutos' => ['required', 'integer', 'between:15,120'],
+            'instaladoEn' => ['required', 'date', 'before_or_equal:today'],
             'activo' => ['boolean'],
+        ], [
+            'instaladoEn.before_or_equal' => 'La fecha de instalación no puede ser posterior a hoy.',
         ]);
 
         $atributos = [
@@ -102,13 +111,14 @@ class Nodos extends Component
             'codigo' => $datos['codigo'],
             'nombre' => $datos['nombre'],
             'intervalo_transmision_minutos' => $datos['intervaloTransmisionMinutos'],
+            'instalado_en' => $datos['instaladoEn'],
             'activo' => $datos['activo'],
         ];
 
         if ($this->editandoId) {
             Nodo::query()->findOrFail($this->editandoId)->update($atributos);
         } else {
-            Nodo::query()->create($atributos + ['instalado_en' => now()]);
+            Nodo::query()->create($atributos);
         }
 
         $this->mostrarModal = false;
@@ -173,6 +183,7 @@ class Nodos extends Component
         $this->nombre = '';
         $this->potreroId = '';
         $this->intervaloTransmisionMinutos = 15;
+        $this->instaladoEn = today()->toDateString();
         $this->activo = true;
         $this->resetValidation();
     }

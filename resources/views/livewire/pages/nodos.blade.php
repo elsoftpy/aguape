@@ -100,6 +100,8 @@
 
             <x-input wire:model="nombre" label="Nombre" placeholder="Corral central" />
 
+            <x-date wire:model="instaladoEn" label="Fecha de instalación" format="DD/MM/YYYY" :max-date="today()" />
+
             <x-select.native
                 wire:model="potreroId"
                 label="Zona / potrero"

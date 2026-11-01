@@ -6,9 +6,18 @@
             Definí los rangos normales para cada variable. Cuando una lectura salga de rango, se genera una alerta automáticamente. Un límite guardado no se puede borrar: para dejar de usarlo, desactivalo.
         </p>
 
+        <div class="max-w-sm">
+            <x-select.native
+                wire:model.live="nodoId"
+                label="Alcance"
+                :options="$this->nodoOptions"
+                :hint="$nodoId === '' ? 'Se aplican a todos los nodos.' : 'Tienen prioridad sobre los generales. Un límite vacío o desactivado usa el general.'"
+            />
+        </div>
+
         <div class="space-y-3">
             @foreach ($this->variables as $variable)
-                <div wire:key="variable-{{ $variable->id }}" class="flex flex-wrap items-center gap-4 rounded-[10px] border border-border bg-panel p-4">
+                <div wire:key="variable-{{ $nodoId }}-{{ $variable->id }}" class="flex flex-wrap items-center gap-4 rounded-[10px] border border-border bg-panel p-4">
                     <div class="flex min-w-[180px] flex-1 items-center gap-3">
                         <span class="flex size-9 items-center justify-center rounded-lg bg-surface text-accent">
                             <x-icon :name="$variable->icono()" sm />
@@ -23,7 +32,7 @@
                                 x-mask:dynamic="$money($input, ',', '.', 2)"
                                 inputmode="decimal"
                                 :label="$etiqueta"
-                                placeholder="—"
+                                :placeholder="$this->limitesGenerales[$variable->id][$tipo] ?? '—'"
                             />
 
                             {{-- Sin valor no hay umbral que activar: se bloquea hasta que se ingrese uno. --}}

@@ -6,6 +6,7 @@ use App\Enums\PermissionsEnum;
 use App\Enums\TipoUmbral;
 use App\Livewire\Concerns\AnalizaDecimales;
 use App\Models\Establecimiento;
+use App\Models\Nodo;
 use App\Models\Umbral;
 use App\Models\Variable;
 use Illuminate\Support\Collection;
@@ -23,17 +24,37 @@ class Umbrales extends Component
 
     public array $filas = [];
 
+    /**
+     * '' para los umbrales generales o el id del nodo elegido.
+     */
+    public string $nodoId = '';
+
     public function mount(): void
     {
-        foreach (Variable::query()->orderBy('id')->get() as $variable) {
-            $this->filas[$variable->id] = $this->cargarFila($variable);
+        $this->cargarFilas();
+    }
+
+    public function updatedNodoId(): void
+    {
+        if ($this->nodoId !== '' && ! Nodo::query()->whereKey($this->nodoId)->exists()) {
+            $this->nodoId = '';
         }
+
+        $this->cargarFilas();
     }
 
     public function guardar(int $variableId): void
     {
         if (! auth()->user()->can(PermissionsEnum::GestionarUmbrales->value)) {
             $this->toast()->error('Sin permiso', 'No tenés permiso para configurar umbrales.')->send();
+
+            return;
+        }
+
+        $nodoId = $this->nodoIdSeleccionado();
+
+        if ($nodoId !== null && ! Nodo::query()->whereKey($nodoId)->exists()) {
+            $this->toast()->error('Nodo no encontrado', 'El nodo seleccionado ya no existe.')->send();
 
             return;
         }
@@ -66,7 +87,7 @@ class Umbrales extends Component
             TipoUmbral::Maximo->value => ['valor' => $maximo, 'activo' => $fila['maximoActivo']],
         ];
 
-        $existentes = $this->umbralesGlobales($variableId);
+        $existentes = $this->umbralesDelAlcance($variableId);
 
         foreach ($limites as $tipo => $limite) {
             if ($limite['valor'] === null && $existentes->has($tipo)) {
@@ -88,7 +109,7 @@ class Umbrales extends Component
             }
 
             Umbral::query()->updateOrCreate(
-                ['variable_id' => $variableId, 'nodo_id' => null, 'tipo' => $tipo],
+                ['variable_id' => $variableId, 'nodo_id' => $nodoId, 'tipo' => $tipo],
                 ['valor' => $limite['valor'], 'activo' => $limite['activo']],
             );
         }
@@ -98,12 +119,21 @@ class Umbrales extends Component
         $this->toast()->success('Guardado', 'Umbrales actualizados.')->send();
     }
 
+    private function cargarFilas(): void
+    {
+        $this->filas = [];
+
+        foreach (Variable::query()->orderBy('id')->get() as $variable) {
+            $this->filas[$variable->id] = $this->cargarFila($variable);
+        }
+    }
+
     /**
      * @return array{minimo: string|null, maximo: string|null, minimoActivo: bool, maximoActivo: bool}
      */
     private function cargarFila(Variable $variable): array
     {
-        $umbrales = $this->umbralesGlobales($variable->id);
+        $umbrales = $this->umbralesDelAlcance($variable->id);
 
         $minimo = $umbrales->get(TipoUmbral::Minimo->value);
         $maximo = $umbrales->get(TipoUmbral::Maximo->value);
@@ -116,16 +146,68 @@ class Umbrales extends Component
         ];
     }
 
+    private function nodoIdSeleccionado(): ?int
+    {
+        return $this->nodoId === '' ? null : (int) $this->nodoId;
+    }
+
     /**
      * @return Collection<string, Umbral>
      */
-    private function umbralesGlobales(int $variableId): Collection
+    private function umbralesDelAlcance(int $variableId, bool $soloGenerales = false): Collection
     {
+        $nodoId = $soloGenerales ? null : $this->nodoIdSeleccionado();
+
         return Umbral::query()
             ->where('variable_id', $variableId)
-            ->whereNull('nodo_id')
+            ->when(
+                $nodoId === null,
+                fn ($query) => $query->whereNull('nodo_id'),
+                fn ($query) => $query->where('nodo_id', $nodoId),
+            )
             ->get()
             ->keyBy(fn (Umbral $umbral) => $umbral->tipo->value);
+    }
+
+    /**
+     * Límites generales activos, se muestran de referencia al editar los de un nodo.
+     *
+     * @return array<int, array{minimo: string|null, maximo: string|null}>
+     */
+    #[Computed]
+    public function limitesGenerales(): array
+    {
+        if ($this->nodoIdSeleccionado() === null) {
+            return [];
+        }
+
+        $limites = [];
+
+        foreach ($this->variables as $variable) {
+            $umbrales = $this->umbralesDelAlcance(variableId: $variable->id, soloGenerales: true)
+                ->filter(fn (Umbral $umbral) => $umbral->activo);
+
+            $limites[$variable->id] = [
+                'minimo' => $this->formatearDecimal($umbrales->get(TipoUmbral::Minimo->value)?->valor),
+                'maximo' => $this->formatearDecimal($umbrales->get(TipoUmbral::Maximo->value)?->valor),
+            ];
+        }
+
+        return $limites;
+    }
+
+    /**
+     * @return array<int, array{label: string, value: int|string}>
+     */
+    #[Computed]
+    public function nodoOptions(): array
+    {
+        return [
+            ['label' => 'General (todos los nodos)', 'value' => ''],
+            ...Nodo::query()->orderBy('codigo')->get()
+                ->map(fn (Nodo $nodo) => ['label' => "{$nodo->codigo} · {$nodo->nombre}", 'value' => $nodo->id])
+                ->all(),
+        ];
     }
 
     /**
