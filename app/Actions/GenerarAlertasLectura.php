@@ -5,11 +5,11 @@ namespace App\Actions;
 use App\Enums\PermissionsEnum;
 use App\Enums\TipoUmbral;
 use App\Models\Alerta;
+use App\Models\DestinatarioAlerta;
 use App\Models\Lectura;
 use App\Models\Umbral;
 use App\Models\User;
 use App\Notifications\AlertaGenerada;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 
@@ -47,17 +47,15 @@ class GenerarAlertasLectura
             return;
         }
 
-        $destinatarios = $this->destinatarios();
+        $correos = $this->destinatarios();
 
-        if ($destinatarios->isEmpty()) {
+        if ($correos === []) {
             Log::warning('Alerta sin destinatarios: no se envió por correo.', [
                 'alerta_ids' => array_map(fn (Alerta $alerta) => $alerta->id, $alertasGeneradas),
             ]);
 
             return;
         }
-
-        $correos = $destinatarios->mapWithKeys(fn (User $user) => [$user->email => $user->name])->all();
 
         foreach ($alertasGeneradas as $alerta) {
             Notification::route('mail', $correos)->notify(new AlertaGenerada($alerta));
@@ -90,8 +88,23 @@ class GenerarAlertasLectura
         };
     }
 
-    private function destinatarios(): Collection
+    /**
+     * Si no hay destinatarios configurados se usan los usuarios con permiso para gestionar alertas.
+     *
+     * @return array<int|string, string>
+     */
+    private function destinatarios(): array
     {
-        return User::query()->permission(PermissionsEnum::GestionarAlertas->value)->get();
+        $configurados = DestinatarioAlerta::query()->orderBy('email')->pluck('email');
+
+        if ($configurados->isNotEmpty()) {
+            return $configurados->all();
+        }
+
+        return User::query()
+            ->permission(PermissionsEnum::GestionarAlertas->value)
+            ->get()
+            ->mapWithKeys(fn (User $user) => [$user->email => $user->name])
+            ->all();
     }
 }

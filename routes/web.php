@@ -3,13 +3,16 @@
 use App\Enums\PermissionsEnum;
 use App\Http\Controllers\CrearPasswordController;
 use App\Livewire\Pages\Alertas;
+use App\Livewire\Pages\Auditoria;
 use App\Livewire\Pages\Dashboard;
+use App\Livewire\Pages\Destinatarios;
 use App\Livewire\Pages\DetalleNodo;
 use App\Livewire\Pages\Historial;
 use App\Livewire\Pages\MiCuenta;
 use App\Livewire\Pages\Nodos;
 use App\Livewire\Pages\Umbrales;
 use App\Livewire\Pages\Usuarios;
+use App\Livewire\Pages\Variables;
 use App\Livewire\Pages\Zonas;
 use Illuminate\Support\Facades\Route;
 
@@ -48,9 +51,21 @@ Route::livewire('/nodos', Nodos::class)
     ->middleware(['auth', 'permission:'.PermissionsEnum::GestionarNodos->value])
     ->name('nodos');
 
+Route::livewire('/variables', Variables::class)
+    ->middleware(['auth', 'permission:'.PermissionsEnum::GestionarVariables->value])
+    ->name('variables');
+
+Route::livewire('/destinatarios', Destinatarios::class)
+    ->middleware(['auth', 'permission:'.PermissionsEnum::GestionarDestinatarios->value])
+    ->name('destinatarios');
+
 Route::livewire('/usuarios', Usuarios::class)
     ->middleware(['auth', 'permission:'.PermissionsEnum::GestionarUsuarios->value])
     ->name('usuarios');
+
+Route::livewire('/auditoria', Auditoria::class)
+    ->middleware(['auth', 'permission:'.PermissionsEnum::VerAuditoria->value])
+    ->name('auditoria');
 
 Route::livewire('/mi-cuenta', MiCuenta::class)
     ->middleware(['auth', 'password.confirm'])

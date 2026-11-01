@@ -7,7 +7,10 @@
         /* ['label' => 'Reportes', 'icon' => 'chart-bar', 'route' => null, 'permission' => null, 'group' => 'main'], */
         ['label' => 'Nodos LoRa', 'icon' => 'cpu-chip', 'route' => 'nodos', 'permission' => \App\Enums\PermissionsEnum::GestionarNodos, 'group' => 'settings'],
         ['label' => 'Configuración de umbrales', 'icon' => 'adjustments-horizontal', 'route' => 'umbrales', 'permission' => \App\Enums\PermissionsEnum::GestionarUmbrales, 'group' => 'settings'],
+        ['label' => 'Variables monitoreadas', 'icon' => 'variable', 'route' => 'variables', 'permission' => \App\Enums\PermissionsEnum::GestionarVariables, 'group' => 'admin'],
+        ['label' => 'Destinatarios de alertas', 'icon' => 'envelope', 'route' => 'destinatarios', 'permission' => \App\Enums\PermissionsEnum::GestionarDestinatarios, 'group' => 'admin'],
         ['label' => 'Usuarios y roles', 'icon' => 'users', 'route' => 'usuarios', 'permission' => \App\Enums\PermissionsEnum::GestionarUsuarios, 'group' => 'admin'],
+        ['label' => 'Auditoría', 'icon' => 'shield-check', 'route' => 'auditoria', 'permission' => \App\Enums\PermissionsEnum::VerAuditoria, 'group' => 'admin'],
         /* ['label' => 'Pasarela de pago', 'icon' => 'credit-card', 'route' => null, 'permission' => \App\Enums\PermissionsEnum::GestionarFacturacion, 'group' => 'admin'], */
         ['label' => 'Mi cuenta', 'icon' => 'user-circle', 'route' => 'mi-cuenta', 'permission' => null, 'group' => 'account'],
     ])
