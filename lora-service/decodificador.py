@@ -1,6 +1,11 @@
 """
 Decodificador del protocolo binario Aguape v1 (primera versión del lora-service).
 
+Cambios (nov. 2026): trama 0x03 ambiental del Nodo 3 (nodo_ambiental v1.0) con los
+campos definitivos; lluvia del intervalo calculada con el contador acumulado de
+basculadas; columnas ambientales en el CSV (el CSV con columnas anteriores se archiva);
+aviso de posible NODO_ID duplicado.
+
 Lee las tramas del E220 conectado al UART de la Raspberry Pi (/dev/ttyAMA0),
 las decodifica y guarda:
   - log_crudo.txt   : todas las líneas con fecha y hora (sirve para reproducir la prueba)
@@ -27,6 +32,14 @@ from collections import Counter
 PROTO_VERSION = 1
 ESTADOS_PASTURA = {0: "OK", 1: "SIN_ECO", 2: "ZONA_CIEGA", 3: "FUERA_ESCALA", 255: "SIN_MEDICION"}
 BANDERAS = {0x01: "ARRANQUE", 0x02: "BATERIA_CRITICA", 0x04: "CFG_RECHAZADA", 0x08: "ESCUCHA"}
+FALLAS_AMBIENTAL = {0x01: "TEMP", 0x02: "HUM", 0x04: "SUELO", 0x08: "LUZ", 0x10: "LLUVIA"}
+MM_POR_BASCULADA = 0.2794          # valor de la librería del SEN0575; reemplazar por el calibrado
+MAX_BASCULADAS_INTERVALO = 1000    # ~280 mm en un intervalo: por encima, el contador se reinició
+COLUMNAS_CSV = ["fecha_hora", "rssi_dbm", "nodo", "tipo", "secuencia", "banderas",
+                "bateria_mv", "cfg_version", "estado", "distancia_mm",
+                "firmware", "motivo_reinicio",
+                "temp_aire_c", "hum_aire_pct", "suelo_mv", "luz_lx", "basculadas", "lluvia_mm",
+                "hex"]
 RE_RX = re.compile(r"\|(-\d{1,3})\|((?:[0-9A-Fa-f]{2}){6,})\s*$")   # |<rssi>|<hex>: tolera el comienzo dañado
 RE_HB = re.compile(r"^(?:#?H?B?\|)?\d{3,}\s*$")   # #HB|<ms>, aunque haya perdido parte o todo el prefijo
 RESUMEN_CADA_S = 600
@@ -60,13 +73,26 @@ def decodificar(datos):
         bat, cfg, mayor, menor, motivo = struct.unpack("<HBBBB", cuerpo)
         t.update(nombre="ARRANQUE", bateria_mv=bat, cfg_version=cfg,
                  firmware=f"{mayor}.{menor}", motivo_reinicio=motivo)
-    elif tipo in (0x02, 0x03):                          # agua / ambiental (provisionales)
+    elif tipo == 0x03:                                  # lectura ambiental (nodo_ambiental v1.0)
         if len(cuerpo) != 14:
-            raise ValueError(f"tipo {tipo:#04x}: cuerpo de {len(cuerpo)} bytes, se esperaban 14")
-        formato = "<HBBHhHHH" if tipo == 0x02 else "<HBBhHHHH"   # agua: nivel primero | ambiental: temperatura primero
-        bat, cfg, estado, *valores = struct.unpack(formato, cuerpo)
-        t.update(nombre="AGUA" if tipo == 0x02 else "AMBIENTAL", bateria_mv=bat,
-                 cfg_version=cfg, estado=f"bits={estado:05b}", valores=valores)
+            raise ValueError(f"ambiental: cuerpo de {len(cuerpo)} bytes, se esperaban 14")
+        bat, cfg, estado, temp_c100, hum_x10, suelo_mv, luz_div2, basc = struct.unpack("<HBBhHHHH", cuerpo)
+        if estado == 0xFF:                              # batería crítica: no se midió
+            t.update(nombre="AMBIENTAL", bateria_mv=bat, cfg_version=cfg, estado="SIN_MEDICION")
+        else:
+            fallas = [n for bit, n in FALLAS_AMBIENTAL.items() if estado & bit]
+            t.update(nombre="AMBIENTAL", bateria_mv=bat, cfg_version=cfg,
+                     estado="OK" if not fallas else "FALLA_" + "+".join(fallas),
+                     temp_aire_c=None if estado & 0x01 else temp_c100 / 100,
+                     hum_aire_pct=None if estado & 0x02 else hum_x10 / 10,
+                     suelo_mv=None if estado & 0x04 else suelo_mv,
+                     luz_lx=None if estado & 0x08 else luz_div2 * 2,
+                     basculadas=None if estado & 0x10 else basc)
+    elif tipo == 0x02:                                  # agua (provisional)
+        if len(cuerpo) != 14:
+            raise ValueError(f"agua: cuerpo de {len(cuerpo)} bytes, se esperaban 14")
+        bat, cfg, estado, *valores = struct.unpack("<HBBHhHHH", cuerpo)
+        t.update(nombre="AGUA", bateria_mv=bat, cfg_version=cfg, estado=f"bits={estado:05b}", valores=valores)
     else:
         raise ValueError(f"tipo {tipo:#04x} desconocido")
     return t
@@ -92,7 +118,10 @@ class Metricas:
         return self.nodos.setdefault(n, {"recibidas": 0, "perdidas": 0, "reinicios": 0,
                                          "ultima_seq": None, "estados": Counter(),
                                          "bat_inicial": None, "bat_final": None,
-                                         "dist_ok": [], "rssi": []})
+                                         "dist_ok": [], "rssi": [],
+                                         "temp": [], "hum": [], "suelo": [], "luz": [],
+                                         "ultima_basc": None, "reinicio_pluvio": False,
+                                         "lluvia_total": 0.0, "secuencias_raras": 0})
 
     def registrar_trama(self, t, rssi):
         m = self.nodo(t["nodo"])
@@ -105,8 +134,13 @@ class Metricas:
                 m["perdidas"] += salto
             else:                       # la secuencia retrocedió sin trama de arranque
                 m["reinicios"] += 1
+                m["secuencias_raras"] += 1
+                print(f"  ! Nodo {t['nodo']}: la secuencia saltó de {m['ultima_seq']} a {seq} sin trama de "
+                      f"arranque. ¿Hay dos nodos con el mismo NODO_ID?")
         if es_arranque and m["ultima_seq"] is not None:
             m["reinicios"] += 1
+        if es_arranque:
+            m["reinicio_pluvio"] = True   # el SEN0575 pudo perder su contador
         m["ultima_seq"] = seq
         m["recibidas"] += 1
         m["rssi"].append(rssi)
@@ -118,6 +152,29 @@ class Metricas:
             m["estados"][t["estado"]] += 1
             if t["estado"] == "OK":
                 m["dist_ok"].append(t["distancia_mm"])
+        elif t["tipo"] == 0x03:
+            m["estados"][t["estado"]] += 1
+            for clave, lista in (("temp_aire_c", "temp"), ("hum_aire_pct", "hum"),
+                                 ("suelo_mv", "suelo"), ("luz_lx", "luz")):
+                if t.get(clave) is not None:
+                    m[lista].append(t[clave])
+            basc = t.get("basculadas")
+            if basc is not None:
+                if m["ultima_basc"] is None:
+                    delta = None                        # primera lectura: no hay referencia
+                elif m["reinicio_pluvio"] and basc < m["ultima_basc"]:
+                    delta = basc                        # el contador volvió a 0 con el reinicio
+                else:
+                    delta = (basc - m["ultima_basc"]) % 65536
+                    if delta > MAX_BASCULADAS_INTERVALO:     # salto imposible: el contador se reinició
+                        print(f"  ! Nodo {t['nodo']}: contador del pluviómetro {m['ultima_basc']} -> {basc} "
+                              f"sin trama de arranque; se descarta la lluvia de este intervalo")
+                        delta = None
+                m["ultima_basc"] = basc
+                m["reinicio_pluvio"] = False
+                if delta is not None:
+                    t["lluvia_mm"] = round(delta * MM_POR_BASCULADA, 2)
+                    m["lluvia_total"] += t["lluvia_mm"]
 
     def registrar_hb(self, ahora):
         if self.ultimo_hb is not None and ahora - self.ultimo_hb > 6:
@@ -144,6 +201,15 @@ class Metricas:
                 print(f"    RSSI: min {min(m['rssi'])} | max {max(m['rssi'])} dBm")
             if m["bat_inicial"] is not None:
                 print(f"    batería: {m['bat_inicial']} -> {m['bat_final']} mV")
+            for lista, nombre, unidad in (("temp", "temperatura", "°C"), ("hum", "humedad", "%"),
+                                          ("suelo", "suelo", "mV"), ("luz", "luz", "lx")):
+                if m[lista]:
+                    v = m[lista]
+                    print(f"    {nombre}: min {min(v)} | max {max(v)} {unidad}")
+            if m["ultima_basc"] is not None:
+                print(f"    lluvia acumulada: {m['lluvia_total']:.2f} mm (contador {m['ultima_basc']})")
+            if m["secuencias_raras"]:
+                print(f"    ! saltos de secuencia sin arranque: {m['secuencias_raras']} (¿NODO_ID duplicado?)")
         print("=" * 64 + "\n")
 
 
@@ -173,9 +239,9 @@ def procesar(raw, ts, ahora, met, escritor):
         detalle = {k: v for k, v in t.items() if k not in ("tipo", "nodo", "secuencia", "banderas", "nombre")}
         print(f"{ts} N{t['nodo']} #{t['secuencia']} {t['nombre']} [{nombres_banderas(t['banderas'])}] "
               f"RSSI {rssi} | {detalle}")
-        escritor.writerow([ts, rssi, t["nodo"], t["nombre"], t["secuencia"], nombres_banderas(t["banderas"]),
-                           t.get("bateria_mv", ""), t.get("cfg_version", ""), t.get("estado", ""),
-                           t.get("distancia_mm", ""), t.get("firmware", ""), t.get("motivo_reinicio", ""), hexa])
+        fila = dict(t, fecha_hora=ts, rssi_dbm=rssi, tipo=t["nombre"],
+                    banderas=nombres_banderas(t["banderas"]), hex=hexa)
+        escritor.writerow(["" if fila.get(c) is None else fila.get(c, "") for c in COLUMNAS_CSV])
         return
 
     if RE_HB.search(texto):
@@ -242,13 +308,18 @@ def main():
     sufijo = "_reproduccion" if args.archivo else ""
     ruta_csv = os.path.join(args.salida, f"lecturas{sufijo}.csv")
     ruta_log = os.path.join(args.salida, "log_crudo.txt")
+    if os.path.exists(ruta_csv):                       # CSV con columnas anteriores: se archiva
+        with open(ruta_csv, encoding="utf-8") as f:
+            encabezado = f.readline().strip()
+        if encabezado and encabezado != ",".join(COLUMNAS_CSV):
+            archivado = ruta_csv.replace(".csv", f"_hasta_{datetime.date.today():%Y%m%d}.csv")
+            os.rename(ruta_csv, archivado)
+            print(f"CSV con columnas anteriores archivado como {archivado}")
     with open(ruta_csv, "a", newline="", encoding="utf-8") as fcsv, \
          open(ruta_log, "ab") if not args.archivo else open(os.devnull, "wb") as flog:
         escritor = csv.writer(fcsv)
         if fcsv.tell() == 0:
-            escritor.writerow(["fecha_hora", "rssi_dbm", "nodo", "tipo", "secuencia", "banderas",
-                               "bateria_mv", "cfg_version", "estado", "distancia_mm",
-                               "firmware", "motivo_reinicio", "hex"])
+            escritor.writerow(COLUMNAS_CSV)
         ultimo_resumen = None
         ultimo_ahora = time.time()
         print("Registrando... Ctrl+C para terminar")

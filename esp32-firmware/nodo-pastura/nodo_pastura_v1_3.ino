@@ -1,6 +1,7 @@
 /*
   NODO DE PASTURA — ALTURA DE PASTO
   ---------------------------------
+  v1.3.2 — NODO_ID 2 (numeración del anteproyecto v5) y potencia de campo (30 dBm)
   v1.3.1 — umbral de zona ciega en 250 mm (el sensor informa ~205–215 mm dentro de su
            zona ciega) y detección de batería ausente (USB o switch apagado), que ya
            no se interpreta como batería crítica
@@ -35,7 +36,7 @@
 #include "esp_system.h"
 
 // ---------------- Identificación ----------------
-#define NODO_ID        1      // AJUSTAR según la numeración definitiva de los nodos
+#define NODO_ID        2      // AJUSTAR según la numeración definitiva de los nodos
 #define FW_MAYOR       1
 #define FW_MENOR       3
 
@@ -112,7 +113,7 @@ struct __attribute__((packed)) TramaArranque {
 
 // ---------------- E220 ----------------
 #define CANAL_E220     73
-#define POTENCIA_E220  POWER_21     // banco: POWER_21 | campo: POWER_30
+#define POTENCIA_E220  POWER_30     // banco: POWER_21 | campo: POWER_30
 
 LoRa_E220 e220ttl(PIN_RX_ESP32, PIN_TX_ESP32, &Serial2, PIN_AUX, PIN_M0, PIN_M1, UART_BPS_RATE_9600);
 
