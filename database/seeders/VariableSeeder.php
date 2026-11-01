@@ -30,7 +30,7 @@ class VariableSeeder extends Seeder
         ];
 
         foreach ($variables as $variable) {
-            Variable::query()->updateOrCreate(['clave' => $variable['clave']], $variable);
+            Variable::query()->firstOrCreate(['clave' => $variable['clave']], $variable);
         }
     }
 }
