@@ -28,8 +28,9 @@ class StoreIngestaRequest extends FormRequest
         return [
             'codigo' => ['required', 'string', 'exists:nodos,codigo'],
             'medido_en' => ['required', 'date'],
-            'nivel_bateria' => ['nullable', 'numeric'],
-            'lecturas' => ['required', 'array', 'min:1'],
+            // Con batería crítica el nodo no mide: el mensaje trae solo la batería.
+            'nivel_bateria' => ['nullable', 'numeric', 'required_without:lecturas'],
+            'lecturas' => ['present', 'array', 'required_without:nivel_bateria'],
             'lecturas.*.variable' => ['required', 'string', 'exists:variables,clave', 'not_in:nivel_bateria,ith'],
             'lecturas.*.valor' => ['required', 'numeric'],
         ];

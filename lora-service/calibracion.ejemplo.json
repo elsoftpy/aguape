@@ -1,0 +1,18 @@
+{
+  "_comentario": "Copiar como calibracion.json y completar con los valores medidos en el campo. Las claves son el NODO_ID del firmware; si falta una entrada, esa variable no se envía.",
+  "1": {
+    "_nodo": "agua",
+    "altura_montaje_mm": 1500,
+    "ph": {"puntos": [[2500, 7.0], [3050, 4.0]]},
+    "turbidez": {"puntos": [[4200, 0.0], [2500, 3000.0]]},
+    "tds": {"k": 1.0}
+  },
+  "2": {
+    "_nodo": "pastura",
+    "altura_montaje_mm": 1200
+  },
+  "3": {
+    "_nodo": "ambiental",
+    "suelo": {"mv_seco": 2800, "mv_saturado": 1200}
+  }
+}

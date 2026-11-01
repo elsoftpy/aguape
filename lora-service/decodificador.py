@@ -1,6 +1,13 @@
 """
 Decodificador del protocolo binario Aguape v1 (primera versión del lora-service).
 
+Cambios (nov. 2026, RF01-RF04): cada lectura decodificada se convierte a las variables de
+Laravel y se envía a POST /api/ingesta (token + firma HMAC) desde un hilo aparte. Las que
+no se pueden enviar (Laravel caído, sin red) se guardan en pendientes.jsonl y se reintentan.
+Las variables que necesitan calibración (altura de pasto, nivel de agua, pH, turbidez,
+conductividad, humedad del suelo) se envían solo si el nodo tiene su entrada en
+calibracion.json (ver calibracion.ejemplo.json). La trama 0x02 de agua pasa a campos con nombre.
+
 Cambios (nov. 2026, CU-06): configuración remota del intervalo. Un hilo consulta
 GET /api/configuracion cada 5 minutos (mismo token y firma HMAC que la ingesta); cuando
 llega una lectura con la bandera ESCUCHA y su cfg_version no coincide con la vigente, se
@@ -22,9 +29,11 @@ Uso:
   python3 decodificador.py /dev/ttyAMA0 --salida /var/lib/aguape     # en vivo
   python3 decodificador.py --archivo log_crudo.txt --salida datos/banco   # reproducir
 
-Variables de entorno para la configuración remota (opcionales):
+Variables de entorno (opcionales; sin ellas solo se registra en CSV, como en el banco):
+  INGESTA_URL         p. ej. http://localhost/api/ingesta
   CONFIGURACION_URL   p. ej. http://localhost/api/configuracion
   INGESTA_TOKEN, INGESTA_HMAC_SECRET   los mismos del .env de Laravel
+  CALIBRACION         ruta de calibracion.json (por defecto, junto a este archivo)
 
 Trama 0x20 — Configuración (gateway -> nodo, 9 bytes, little-endian):
   0-5  encabezado (version, tipo 0x20, nodo destino, secuencia del gateway, banderas 0)
@@ -46,6 +55,8 @@ import os
 import sys
 import threading
 import time
+import queue
+import urllib.error
 import urllib.request
 from collections import Counter
 
@@ -53,12 +64,14 @@ PROTO_VERSION = 1
 ESTADOS_PASTURA = {0: "OK", 1: "SIN_ECO", 2: "ZONA_CIEGA", 3: "FUERA_ESCALA", 255: "SIN_MEDICION"}
 BANDERAS = {0x01: "ARRANQUE", 0x02: "BATERIA_CRITICA", 0x04: "CFG_RECHAZADA", 0x08: "ESCUCHA"}
 FALLAS_AMBIENTAL = {0x01: "TEMP", 0x02: "HUM", 0x04: "SUELO", 0x08: "LUZ", 0x10: "LLUVIA"}
+FALLAS_AGUA = {0x01: "NIVEL", 0x02: "TEMP", 0x04: "PH", 0x08: "TURBIDEZ", 0x10: "CONDUCTIVIDAD"}
 MM_POR_BASCULADA = 0.2794          # valor de la librería del SEN0575; reemplazar por el calibrado
 MAX_BASCULADAS_INTERVALO = 1000    # ~280 mm en un intervalo: por encima, el contador se reinició
 COLUMNAS_CSV = ["fecha_hora", "rssi_dbm", "nodo", "tipo", "secuencia", "banderas",
                 "bateria_mv", "cfg_version", "estado", "distancia_mm",
                 "firmware", "motivo_reinicio",
                 "temp_aire_c", "hum_aire_pct", "suelo_mv", "luz_lx", "basculadas", "lluvia_mm",
+                "temp_agua_c", "ph_mv", "turbidez_mv", "tds_mv",
                 "hex"]
 RE_RX = re.compile(r"\|(-\d{1,3})\|((?:[0-9A-Fa-f]{2}){6,})\s*$")   # |<rssi>|<hex>: tolera el comienzo dañado
 RE_HB = re.compile(r"^(?:#?H?B?\|)?\d{3,}\s*$")   # #HB|<ms>, aunque haya perdido parte o todo el prefijo
@@ -67,6 +80,11 @@ TIPO_CONFIG = 0x20
 BAND_CFG_RECHAZADA = 0x04
 BAND_ESCUCHA = 0x08
 CONSULTA_CONFIG_CADA_S = 300
+REINTENTO_PENDIENTES_S = 60
+# Batería 2S de litio: el firmware corta a 3,2 V por celda (6400 mV) y por debajo de
+# 3000 mV no hay batería (USB o switch apagado).
+BAT_VACIA_MV, BAT_LLENA_MV, BAT_AUSENTE_MV = 6400, 8400, 3000
+LUX_A_W_M2 = 0.0079   # luz solar: ~127 lm/W. Aproximación; el BH1750 no mide radiación.
 
 # --------------------------------------------------------------------------
 # Decodificación
@@ -112,14 +130,182 @@ def decodificar(datos):
                      suelo_mv=None if estado & 0x04 else suelo_mv,
                      luz_lx=None if estado & 0x08 else luz_div2 * 2,
                      basculadas=None if estado & 0x10 else basc)
-    elif tipo == 0x02:                                  # agua (provisional)
+    elif tipo == 0x02:                                  # lectura de agua (nodo_agua v1.0)
         if len(cuerpo) != 14:
             raise ValueError(f"agua: cuerpo de {len(cuerpo)} bytes, se esperaban 14")
-        bat, cfg, estado, *valores = struct.unpack("<HBBHhHHH", cuerpo)
-        t.update(nombre="AGUA", bateria_mv=bat, cfg_version=cfg, estado=f"bits={estado:05b}", valores=valores)
+        bat, cfg, estado, dist, temp_c100, ph_mv, turb_mv, tds_mv = struct.unpack("<HBBHhHHH", cuerpo)
+        if estado == 0xFF:                              # batería crítica: no se midió
+            t.update(nombre="AGUA", bateria_mv=bat, cfg_version=cfg, estado="SIN_MEDICION")
+        else:
+            fallas = [n for bit, n in FALLAS_AGUA.items() if estado & bit]
+            t.update(nombre="AGUA", bateria_mv=bat, cfg_version=cfg,
+                     estado="OK" if not fallas else "FALLA_" + "+".join(fallas),
+                     distancia_mm=None if estado & 0x01 else dist,
+                     temp_agua_c=None if estado & 0x02 else temp_c100 / 100,
+                     ph_mv=None if estado & 0x04 else ph_mv,
+                     turbidez_mv=None if estado & 0x08 else turb_mv,
+                     tds_mv=None if estado & 0x10 else tds_mv)
     else:
         raise ValueError(f"tipo {tipo:#04x} desconocido")
     return t
+
+
+# --------------------------------------------------------------------------
+# Conversión a las variables de Laravel (RF01, RF02)
+# --------------------------------------------------------------------------
+def lineal(mv, puntos):
+    """Recta por dos puntos de calibración [[mv1, valor1], [mv2, valor2]]."""
+    (x1, y1), (x2, y2) = puntos
+    return y1 + (mv - x1) * (y2 - y1) / (x2 - x1)
+
+
+def nivel_bateria(mv):
+    if mv is None or mv < BAT_AUSENTE_MV:
+        return None                     # sin batería: no es un 0 %
+    return round(min(100.0, max(0.0, 100 * (mv - BAT_VACIA_MV) / (BAT_LLENA_MV - BAT_VACIA_MV))), 1)
+
+
+def conductividad(tds_mv, temp_agua_c, k):
+    """µS/cm con la fórmula del sensor TDS de DFRobot, compensada a 25 °C."""
+    v = tds_mv / 1000
+    if temp_agua_c is not None:
+        v /= 1 + 0.02 * (temp_agua_c - 25)
+    return (133.42 * v ** 3 - 255.86 * v ** 2 + 857.39 * v) * k
+
+
+def payload_ingesta(t, cal, medido_en):
+    """Cuerpo de POST /api/ingesta para la trama `t`, o None si no hay nada que enviar.
+
+    `cal` es la entrada del nodo en calibracion.json ({} si no tiene): las variables que
+    dependen de una calibración faltante no se envían.
+    """
+    if t["tipo"] not in (0x01, 0x02, 0x03):             # arranque: no trae mediciones
+        return None
+    lecturas = []
+
+    def agregar(variable, valor, decimales=2):
+        if valor is not None:
+            lecturas.append({"variable": variable, "valor": round(valor, decimales)})
+
+    if t["tipo"] == 0x01 and t["estado"] == "OK" and "altura_montaje_mm" in cal:
+        agregar("altura_pastura", (cal["altura_montaje_mm"] - t["distancia_mm"]) / 10, 1)
+    elif t["tipo"] == 0x03:
+        agregar("temperatura_aire", t.get("temp_aire_c"))
+        agregar("humedad_aire", t.get("hum_aire_pct"), 1)
+        agregar("precipitacion", t.get("lluvia_mm"))
+        if t.get("luz_lx") is not None:
+            agregar("radiacion_solar", t["luz_lx"] * LUX_A_W_M2, 1)
+        if t.get("suelo_mv") is not None and "suelo" in cal:
+            seco, saturado = cal["suelo"]["mv_seco"], cal["suelo"]["mv_saturado"]
+            agregar("humedad_suelo", min(100.0, max(0.0, 100 * (seco - t["suelo_mv"]) / (seco - saturado))), 1)
+    elif t["tipo"] == 0x02:
+        agregar("temperatura_agua", t.get("temp_agua_c"))
+        if t.get("distancia_mm") is not None and "altura_montaje_mm" in cal:
+            agregar("nivel_agua", (cal["altura_montaje_mm"] - t["distancia_mm"]) / 10, 1)
+        if t.get("ph_mv") is not None and "ph" in cal:
+            agregar("ph_agua", lineal(t["ph_mv"], cal["ph"]["puntos"]))
+        if t.get("turbidez_mv") is not None and "turbidez" in cal:
+            agregar("turbidez_agua", max(0.0, lineal(t["turbidez_mv"], cal["turbidez"]["puntos"])), 1)
+        if t.get("tds_mv") is not None and "tds" in cal:
+            agregar("conductividad_agua", conductividad(t["tds_mv"], t.get("temp_agua_c"), cal["tds"].get("k", 1.0)), 1)
+
+    bateria = nivel_bateria(t.get("bateria_mv"))
+    if not lecturas and bateria is None:
+        return None
+    return {"codigo": f"N-{t['nodo']}", "medido_en": medido_en, "nivel_bateria": bateria, "lecturas": lecturas}
+
+
+def cargar_calibracion(ruta):
+    if not os.path.exists(ruta):
+        print(f"Sin {ruta}: no se envían las variables que necesitan calibración")
+        return {}
+    with open(ruta, encoding="utf-8") as f:
+        return {int(nodo): datos for nodo, datos in json.load(f).items() if not nodo.startswith("_")}
+
+
+def firmar_cabeceras(cuerpo, token, secreto):
+    """Mismas cabeceras que valida Laravel: HMAC-SHA256 de "{timestamp}.{cuerpo}"."""
+    timestamp = str(int(time.time()))
+    firma = hmac.new(secreto.encode(), f"{timestamp}.".encode() + cuerpo, hashlib.sha256).hexdigest()
+    return {"Accept": "application/json", "Authorization": f"Bearer {token}",
+            "X-Ingesta-Timestamp": timestamp, "X-Ingesta-Signature": firma}
+
+
+class EnvioIngesta:
+    """Envía las lecturas a POST /api/ingesta en un hilo aparte.
+
+    Un envío que falla por red o por un error 5xx se guarda en pendientes.jsonl y se
+    reintenta cada minuto, en orden, con su `medido_en` original (Laravel no duplica:
+    la lectura se identifica por nodo, variable y fecha). Un 4xx (nodo no registrado,
+    inactivo o datos inválidos) no se reintenta: se avisa y se descarta.
+    """
+
+    def __init__(self, url, token, secreto, ruta_pendientes):
+        self.url, self.token, self.secreto = url, token, secreto
+        self.ruta_pendientes = ruta_pendientes
+        self.cola = queue.Queue()
+        self.enviadas = self.rechazadas = 0
+        threading.Thread(target=self._trabajar, daemon=True).start()
+
+    def enviar(self, payload):
+        self.cola.put(payload)
+
+    def _trabajar(self):
+        ultimo_reintento = 0
+        while True:
+            try:
+                payload = self.cola.get(timeout=REINTENTO_PENDIENTES_S)
+                if self._hay_pendientes() or not self._post(payload):
+                    self._guardar_pendiente(payload)     # se conserva el orden de llegada
+            except queue.Empty:
+                pass
+            if time.time() - ultimo_reintento >= REINTENTO_PENDIENTES_S:
+                ultimo_reintento = time.time()
+                self._reintentar_pendientes()
+
+    def _post(self, payload):
+        """True si quedó resuelto (enviado o rechazado por Laravel); False si hay que reintentar."""
+        cuerpo = json.dumps(payload).encode()
+        pedido = urllib.request.Request(self.url, data=cuerpo, method="POST",
+                                        headers={"Content-Type": "application/json",
+                                                 **firmar_cabeceras(cuerpo, self.token, self.secreto)})
+        try:
+            with urllib.request.urlopen(pedido, timeout=10):
+                self.enviadas += 1
+                return True
+        except urllib.error.HTTPError as e:
+            if e.code >= 500:
+                print(f"  ! Ingesta {payload['codigo']}: HTTP {e.code}, se reintenta")
+                return False
+            self.rechazadas += 1
+            print(f"  ! Ingesta {payload['codigo']} rechazada: HTTP {e.code} {e.read()[:200].decode(errors='replace')}")
+            return True
+        except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
+            print(f"  ! Ingesta {payload['codigo']}: sin conexión ({e}), queda pendiente")
+            return False
+
+    def _hay_pendientes(self):
+        return os.path.exists(self.ruta_pendientes) and os.path.getsize(self.ruta_pendientes) > 0
+
+    def _guardar_pendiente(self, payload):
+        with open(self.ruta_pendientes, "a", encoding="utf-8") as f:
+            f.write(json.dumps(payload) + "\n")
+
+    def _reintentar_pendientes(self):
+        if not self._hay_pendientes():
+            return
+        with open(self.ruta_pendientes, encoding="utf-8") as f:
+            pendientes = [json.loads(l) for l in f if l.strip()]
+        enviados = 0
+        for payload in pendientes:
+            if not self._post(payload):
+                break
+            enviados += 1
+        with open(self.ruta_pendientes, "w", encoding="utf-8") as f:
+            for payload in pendientes[enviados:]:
+                f.write(json.dumps(payload) + "\n")
+        if enviados:
+            print(f"Pendientes enviados: {enviados}, quedan {len(pendientes) - enviados}")
 
 
 # --------------------------------------------------------------------------
@@ -148,14 +334,7 @@ class ConfiguracionRemota:
             time.sleep(CONSULTA_CONFIG_CADA_S)
 
     def _consultar(self):
-        timestamp = str(int(time.time()))
-        firma = hmac.new(self.secreto.encode(), f"{timestamp}.".encode(), hashlib.sha256).hexdigest()
-        pedido = urllib.request.Request(self.url, headers={
-            "Accept": "application/json",
-            "Authorization": f"Bearer {self.token}",
-            "X-Ingesta-Timestamp": timestamp,
-            "X-Ingesta-Signature": firma,
-        })
+        pedido = urllib.request.Request(self.url, headers=firmar_cabeceras(b"", self.token, self.secreto))
         with urllib.request.urlopen(pedido, timeout=5) as respuesta:
             datos = json.load(respuesta)
         vigente = (int(datos["cfg_version"]), int(datos["intervalo_transmision_minutos"]))
@@ -388,18 +567,27 @@ def main():
     met = Metricas()
     ser = None
     configuracion = None
+    envio = None
+    calibracion = {}
     if args.archivo:
         fuente = fuente_archivo(args.archivo)
     else:
         import serial
         ser = serial.Serial(args.puerto, 9600, timeout=0.05)
         fuente = fuente_e220(ser)
+        token, secreto = os.environ.get("INGESTA_TOKEN", ""), os.environ.get("INGESTA_HMAC_SECRET", "")
         url = os.environ.get("CONFIGURACION_URL", "")
         if url:
-            configuracion = ConfiguracionRemota(url, os.environ.get("INGESTA_TOKEN", ""),
-                                                os.environ.get("INGESTA_HMAC_SECRET", ""))
+            configuracion = ConfiguracionRemota(url, token, secreto)
         else:
             print("Sin CONFIGURACION_URL: no se envía configuración a los nodos")
+        url = os.environ.get("INGESTA_URL", "")
+        if url:
+            envio = EnvioIngesta(url, token, secreto, os.path.join(args.salida, "pendientes.jsonl"))
+            calibracion = cargar_calibracion(os.environ.get(
+                "CALIBRACION", os.path.join(os.path.dirname(os.path.abspath(__file__)), "calibracion.json")))
+        else:
+            print("Sin INGESTA_URL: las lecturas solo se guardan en el CSV")
     sufijo = "_reproduccion" if args.archivo else ""
     ruta_csv = os.path.join(args.salida, f"lecturas{sufijo}.csv")
     ruta_log = os.path.join(args.salida, "log_crudo.txt")
@@ -434,6 +622,11 @@ def main():
                     flog.flush()
                     print(f"{ts} -> N{t['nodo']} CONFIG versión {configuracion.vigente[0]}, "
                           f"intervalo {configuracion.vigente[1]} min")
+                if envio and t:
+                    medido_en = datetime.datetime.now().astimezone().isoformat(timespec="seconds")
+                    payload = payload_ingesta(t, calibracion.get(t["nodo"], {}), medido_en)
+                    if payload:
+                        envio.enviar(payload)
                 fcsv.flush()
                 if ultimo_resumen is None:
                     ultimo_resumen = ahora
@@ -443,6 +636,9 @@ def main():
         except KeyboardInterrupt:
             pass
         met.resumen(time.time() if not args.archivo else ultimo_ahora)
+    if envio:
+        print(f"Ingesta: enviadas {envio.enviadas} | rechazadas {envio.rechazadas} | "
+              f"pendientes en {envio.ruta_pendientes} si quedó alguna")
     if ser:
         ser.close()
 
