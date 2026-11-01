@@ -10,6 +10,7 @@ use App\Livewire\Pages\DetalleNodo;
 use App\Livewire\Pages\Establecimientos;
 use App\Livewire\Pages\Historial;
 use App\Livewire\Pages\IntervaloTransmision;
+use App\Livewire\Pages\IthCortes;
 use App\Livewire\Pages\MiCuenta;
 use App\Livewire\Pages\Nodos;
 use App\Livewire\Pages\Umbrales;
@@ -36,6 +37,10 @@ Route::livewire('/zonas', Zonas::class)
 Route::livewire('/zonas/nodos/{nodo}', DetalleNodo::class)
     ->middleware(['auth', 'permission:'.PermissionsEnum::VerDashboard->value])
     ->name('zonas.nodo');
+
+Route::livewire('/ith', IthCortes::class)
+    ->middleware(['auth', 'permission:'.PermissionsEnum::VerDashboard->value])
+    ->name('ith');
 
 Route::livewire('/alertas', Alertas::class)
     ->middleware(['auth', 'permission:'.PermissionsEnum::VerHistorialAlertas->value.'|'.PermissionsEnum::GestionarAlertas->value])

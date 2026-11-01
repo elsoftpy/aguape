@@ -25,7 +25,8 @@ class ProcesarIngestaNodo
             throw new NodoInactivoException($nodo->codigo);
         }
 
-        $medidoEn = CarbonImmutable::parse($datos['medido_en'])->utc();
+        // El medido_en del receptor trae su propio desfase: se pasa a la zona de la aplicación.
+        $medidoEn = CarbonImmutable::parse($datos['medido_en'])->setTimezone(config('app.timezone'));
         $valoresPorClave = collect($datos['lecturas'])->pluck('valor', 'variable');
 
         DB::transaction(function () use ($nodo, $datos, $medidoEn, $valoresPorClave): void {

@@ -40,6 +40,11 @@ class Nodo extends Model implements AuditableContract
             && $ultimaLectura->gte(now()->subMinutes(ConfiguracionGeneral::actual()->intervalo_transmision_minutos * 2));
     }
 
+    public function ithCortes(): HasMany
+    {
+        return $this->hasMany(IthCorte::class);
+    }
+
     public function establecimiento(): BelongsTo
     {
         return $this->belongsTo(Establecimiento::class);
