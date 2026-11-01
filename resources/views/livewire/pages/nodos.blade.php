@@ -7,7 +7,7 @@
 
     <div class="space-y-6 px-6 py-6 md:px-8">
         <p class="text-sm text-text-secondary">
-            Administrá los nodos LoRa registrados, su zona asignada y el intervalo de transmisión de cada uno (entre 15 y 120 minutos).
+            Administrá los nodos LoRa registrados y su zona asignada. El intervalo de transmisión es general y se configura en "Intervalo de transmisión".
         </p>
 
         <div class="overflow-hidden rounded-[10px] border border-border bg-panel">
@@ -30,10 +30,6 @@
                     </div>
 
                     <div class="flex shrink-0 items-center gap-4">
-                        <span class="font-mono text-xs text-text-tertiary">
-                            cada {{ $nodo->intervalo_transmision_minutos }} min
-                        </span>
-
                         <span class="rounded-full px-2.5 py-1 text-xs font-medium
                             {{ $nodo->activo ? 'bg-success-dim text-success' : 'bg-danger-dim text-danger' }}">
                             {{ $nodo->activo ? 'Activo' : 'Inactivo' }}
@@ -112,15 +108,6 @@
                 wire:model="potreroId"
                 label="Zona / potrero"
                 :options="$this->potreroOptions"
-            />
-
-            <x-number
-                wire:model="intervaloTransmisionMinutos"
-                label="Intervalo de transmisión (minutos)"
-                hint="Entre 15 y 120 minutos"
-                :min="15"
-                :max="120"
-                :step="15"
             />
 
             <x-toggle wire:model="activo" label="Nodo activo" color="cyan" position="left" />

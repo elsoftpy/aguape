@@ -9,6 +9,7 @@ use App\Livewire\Pages\Destinatarios;
 use App\Livewire\Pages\DetalleNodo;
 use App\Livewire\Pages\Establecimientos;
 use App\Livewire\Pages\Historial;
+use App\Livewire\Pages\IntervaloTransmision;
 use App\Livewire\Pages\MiCuenta;
 use App\Livewire\Pages\Nodos;
 use App\Livewire\Pages\Umbrales;
@@ -63,6 +64,10 @@ Route::livewire('/variables', Variables::class)
 Route::livewire('/destinatarios', Destinatarios::class)
     ->middleware(['auth', 'permission:'.PermissionsEnum::GestionarDestinatarios->value])
     ->name('destinatarios');
+
+Route::livewire('/intervalo-transmision', IntervaloTransmision::class)
+    ->middleware(['auth', 'permission:'.PermissionsEnum::GestionarConfiguracion->value])
+    ->name('intervalo-transmision');
 
 Route::livewire('/usuarios', Usuarios::class)
     ->middleware(['auth', 'permission:'.PermissionsEnum::GestionarUsuarios->value])

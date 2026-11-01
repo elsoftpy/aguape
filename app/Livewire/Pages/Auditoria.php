@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Pages;
 
+use App\Models\ConfiguracionGeneral;
 use App\Models\DestinatarioAlerta;
 use App\Models\Establecimiento;
 use App\Models\Nodo;
@@ -34,6 +35,7 @@ class Auditoria extends Component
         Variable::class => 'Variable',
         Umbral::class => 'Umbral',
         DestinatarioAlerta::class => 'Destinatario de alerta',
+        ConfiguracionGeneral::class => 'Configuración general',
     ];
 
     public const EVENTOS = [

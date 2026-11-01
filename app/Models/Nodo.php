@@ -17,7 +17,6 @@ use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
     'potrero_id',
     'codigo',
     'nombre',
-    'intervalo_transmision_minutos',
     'activo',
     'instalado_en',
 ])]
@@ -38,7 +37,7 @@ class Nodo extends Model implements AuditableContract
     {
         return $this->activo
             && $ultimaLectura !== null
-            && $ultimaLectura->gte(now()->subMinutes($this->intervalo_transmision_minutos * 2));
+            && $ultimaLectura->gte(now()->subMinutes(ConfiguracionGeneral::actual()->intervalo_transmision_minutos * 2));
     }
 
     public function establecimiento(): BelongsTo

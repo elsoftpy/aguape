@@ -72,7 +72,7 @@
                     'Zona asignada' => $nodo->potrero?->nombre ?? 'Sin zona asignada',
                     'Última lectura' => $this->ultimaLectura?->medido_en->diffForHumans() ?? 'Sin lecturas',
                     'Batería' => $this->bateria !== null ? \Illuminate\Support\Number::format($this->bateria, precision: 2).'%' : '—',
-                    'Intervalo de transmisión' => 'cada '.$nodo->intervalo_transmision_minutos.' min',
+                    'Intervalo de transmisión' => 'cada '.\App\Models\ConfiguracionGeneral::actual()->intervalo_transmision_minutos.' min',
                     'Instalado' => $nodo->instalado_en?->translatedFormat('d/m/Y') ?? '—',
                 ] as $etiqueta => $valor)
                     <div class="flex items-center justify-between gap-3 border-b border-border py-2.5">

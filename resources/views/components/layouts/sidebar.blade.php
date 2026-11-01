@@ -6,6 +6,7 @@
         ['label' => 'Alertas', 'icon' => 'bell-alert', 'route' => 'alertas', 'permission' => [\App\Enums\PermissionsEnum::VerHistorialAlertas, \App\Enums\PermissionsEnum::GestionarAlertas], 'group' => 'main'],
         /* ['label' => 'Reportes', 'icon' => 'chart-bar', 'route' => null, 'permission' => null, 'group' => 'main'], */
         ['label' => 'Nodos LoRa', 'icon' => 'cpu-chip', 'route' => 'nodos', 'permission' => \App\Enums\PermissionsEnum::GestionarNodos, 'group' => 'settings'],
+        ['label' => 'Intervalo de transmisión', 'icon' => 'signal', 'route' => 'intervalo-transmision', 'permission' => \App\Enums\PermissionsEnum::GestionarConfiguracion, 'group' => 'settings'],
         ['label' => 'Configuración de umbrales', 'icon' => 'adjustments-horizontal', 'route' => 'umbrales', 'permission' => \App\Enums\PermissionsEnum::GestionarUmbrales, 'group' => 'settings'],
         ['label' => 'Establecimientos', 'icon' => 'home-modern', 'route' => 'establecimientos', 'permission' => \App\Enums\PermissionsEnum::GestionarEstablecimientos, 'group' => 'admin'],
         ['label' => 'Variables monitoreadas', 'icon' => 'variable', 'route' => 'variables', 'permission' => \App\Enums\PermissionsEnum::GestionarVariables, 'group' => 'admin'],

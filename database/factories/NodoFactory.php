@@ -23,7 +23,6 @@ class NodoFactory extends Factory
             'potrero_id' => null,
             'codigo' => 'N-'.fake()->unique()->numberBetween(1, 999),
             'nombre' => fake()->words(2, true),
-            'intervalo_transmision_minutos' => fake()->randomElement([15, 30, 60, 120]),
             'activo' => true,
             'instalado_en' => now(),
         ];

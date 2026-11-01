@@ -1,6 +1,9 @@
 /*
   NODO DE AGUA — NODO 1 (anteproyecto v5)
   ---------------------------------------
+  v1.1 — configuración remota del intervalo (CU-06), igual que nodo_pastura v1.4: cada
+         lectura sale con BAND_ESCUCHA, el nodo espera 2 s la trama 0x20 y guarda la
+         versión y el intervalo en NVS.
   v1.0 — primera versión. Basado en nodo_ambiental v1.0 / nodo_pastura v1.3.2 (protocolo
          binario v1, configuración del E220 solo al encender, trama de arranque, sueño
          profundo con TX/M0/M1 retenidos y detección de batería crítica / ausente).
@@ -55,16 +58,18 @@
 #include <DallasTemperature.h>
 #include "driver/gpio.h"
 #include "esp_system.h"
+#include <Preferences.h>
 
 // ---------------- Identificación ----------------
 #define NODO_ID        1
 #define FW_MAYOR       1
-#define FW_MENOR       0
+#define FW_MENOR       1
 
 // ---------------- Protocolo ----------------
 #define PROTO_VERSION      1
 #define TIPO_AGUA          0x02
 #define TIPO_ARRANQUE      0x10
+#define TIPO_CONFIG        0x20
 
 #define FALLA_NIVEL    0x01
 #define FALLA_TEMP     0x02
@@ -109,6 +114,13 @@ struct __attribute__((packed)) TramaArranque {
 };
 static_assert(sizeof(TramaArranque) == 12, "La trama de arranque debe medir 12 bytes");
 
+struct __attribute__((packed)) TramaConfig {      // gateway -> nodo
+  Encabezado enc;
+  uint8_t  cfg_version;
+  uint16_t intervalo_min;
+};                                   // 9 bytes
+static_assert(sizeof(TramaConfig) == 9, "La trama de configuración debe medir 9 bytes");
+
 // ---------------- Pines ----------------
 #define PIN_AUX        4
 #define PIN_M0         18
@@ -128,7 +140,11 @@ static_assert(sizeof(TramaArranque) == 12, "La trama de arranque debe medir 12 b
 #define PIN_LED_TX     26
 
 // ---------------- Ciclo ----------------
-#define INTERVALO_S    60     // pruebas: 60 | campo: lo define el backend (v1.4)
+#define INTERVALO_DEFECTO_S 60    // hasta recibir la configuración remota (pruebas: 60)
+#define VENTANA_ESCUCHA_MS  2000  // espera de la trama 0x20 después de cada lectura
+#define FIN_TRAMA_MS        30    // silencio en el UART que marca el fin de una trama recibida
+#define INTERVALO_MIN_MIN   15    // rango que acepta el nodo (el mismo que valida el backend)
+#define INTERVALO_MAX_MIN   120
 
 // ---------------- Nivel (AJ-SR04M) ----------------
 #define DIST_MIN_MM          250    // zona ciega del AJ-SR04M
@@ -164,7 +180,9 @@ OneWire oneWire(PIN_DS18B20);
 DallasTemperature ds(&oneWire);
 
 RTC_DATA_ATTR uint16_t secuencia = 0;
-RTC_DATA_ATTR uint8_t  cfgVersion = 0;   // 0 = sin configuración remota (llega en la v1.4)
+RTC_DATA_ATTR uint8_t  cfgVersion = 0;   // 0 = sin configuración remota
+RTC_DATA_ATTR uint32_t intervaloS = INTERVALO_DEFECTO_S;
+RTC_DATA_ATTR bool     cfgRechazada = false;   // se informa en la próxima lectura
 
 // ===================================================================
 // Lecturas analógicas
@@ -371,6 +389,74 @@ bool transmitir(const void *trama, uint8_t largo) {
 }
 
 // ===================================================================
+// Configuración remota (CU-06)
+// ===================================================================
+// Se guarda en NVS (flash) para que sobreviva un corte de alimentación;
+// al despertar del sueño profundo alcanza con las variables RTC.
+void cargarConfiguracion() {
+  Preferences prefs;
+  prefs.begin("aguape", true);
+  cfgVersion = prefs.getUChar("cfg_version", 0);
+  intervaloS = prefs.getUInt("intervalo_s", INTERVALO_DEFECTO_S);
+  prefs.end();
+  Serial.printf("Config remota: version %u, intervalo %lu s\n", cfgVersion, (unsigned long)intervaloS);
+}
+
+void guardarConfiguracion() {
+  Preferences prefs;
+  prefs.begin("aguape", false);
+  prefs.putUChar("cfg_version", cfgVersion);
+  prefs.putUInt("intervalo_s", intervaloS);
+  prefs.end();
+}
+
+// Lee una trama recibida (ráfaga de bytes + byte de RSSI). Termina con FIN_TRAMA_MS de
+// silencio, o devuelve 0 si llega a limiteMs sin haber recibido nada.
+uint8_t recibirTrama(uint8_t *buf, uint8_t max, unsigned long limiteMs) {
+  uint8_t n = 0;
+  unsigned long ultimo = millis();
+  while (true) {
+    if (Serial2.available()) {
+      uint8_t b = Serial2.read();
+      if (n < max) buf[n++] = b;
+      ultimo = millis();
+    } else if (n > 0 && millis() - ultimo >= FIN_TRAMA_MS) {
+      return n;
+    } else if (n == 0 && millis() >= limiteMs) {
+      return 0;
+    } else {
+      delay(1);
+    }
+  }
+}
+
+// Después de cada lectura (enviada con BAND_ESCUCHA) el nodo espera la trama 0x20 durante
+// VENTANA_ESCUCHA_MS. En modo transparente también oye las lecturas de otros nodos: se
+// descarta todo lo que no sea una configuración dirigida a este NODO_ID.
+void escucharConfiguracion() {
+  while (Serial2.available()) Serial2.read();
+  uint8_t buf[32];
+  unsigned long limite = millis() + VENTANA_ESCUCHA_MS;
+  while (millis() < limite) {
+    uint8_t n = recibirTrama(buf, sizeof(buf), limite);
+    if (n != sizeof(TramaConfig) + 1) continue;       // + 1 byte de RSSI
+    TramaConfig c;
+    memcpy(&c, buf, sizeof(c));
+    if (c.enc.version != PROTO_VERSION || c.enc.tipo != TIPO_CONFIG || c.enc.nodo != NODO_ID) continue;
+    if (c.cfg_version == 0 || c.intervalo_min < INTERVALO_MIN_MIN || c.intervalo_min > INTERVALO_MAX_MIN) {
+      cfgRechazada = true;
+      Serial.printf("Config remota RECHAZADA: version %u, intervalo %u min\n", c.cfg_version, c.intervalo_min);
+      return;
+    }
+    cfgVersion = c.cfg_version;
+    intervaloS = (uint32_t)c.intervalo_min * 60;
+    guardarConfiguracion();
+    Serial.printf("Config remota aplicada: version %u, intervalo %u min\n", cfgVersion, c.intervalo_min);
+    return;
+  }
+}
+
+// ===================================================================
 // Sueño profundo
 // ===================================================================
 void dormir(uint32_t segundos) {
@@ -419,6 +505,7 @@ void setup() {
 
   esp_reset_reason_t motivo = esp_reset_reason();
   bool despertar = (motivo == ESP_RST_DEEPSLEEP);
+  if (!despertar) cargarConfiguracion();
 
   uint16_t batMv = leerBateriaMv();
   Serial.printf("Bateria: %u mV\n", batMv);
@@ -454,10 +541,12 @@ void setup() {
   }
 
   medirSensores(t);
-  llenarEncabezado(t.enc, TIPO_AGUA, 0);
+  llenarEncabezado(t.enc, TIPO_AGUA, BAND_ESCUCHA | (cfgRechazada ? BAND_CFG_RECHAZADA : 0));
+  cfgRechazada = false;
   transmitir(&t, sizeof(t));
 
-  dormir(INTERVALO_S);
+  escucharConfiguracion();
+  dormir(intervaloS);
 }
 
 void loop() {}

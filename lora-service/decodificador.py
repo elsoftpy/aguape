@@ -1,6 +1,12 @@
 """
 Decodificador del protocolo binario Aguape v1 (primera versión del lora-service).
 
+Cambios (nov. 2026, CU-06): configuración remota del intervalo. Un hilo consulta
+GET /api/configuracion cada 5 minutos (mismo token y firma HMAC que la ingesta); cuando
+llega una lectura con la bandera ESCUCHA y su cfg_version no coincide con la vigente, se
+responde en el acto con una trama 0x20 de configuración. Sin CONFIGURACION_URL no se
+envía nada (útil en el banco, para que los nodos sigan con su intervalo de prueba).
+
 Cambios (nov. 2026): trama 0x03 ambiental del Nodo 3 (nodo_ambiental v1.0) con los
 campos definitivos; lluvia del intervalo calculada con el contador acumulado de
 basculadas; columnas ambientales en el CSV (el CSV con columnas anteriores se archiva);
@@ -16,17 +22,31 @@ Uso:
   python3 decodificador.py /dev/ttyAMA0 --salida /var/lib/aguape     # en vivo
   python3 decodificador.py --archivo log_crudo.txt --salida datos/banco   # reproducir
 
+Variables de entorno para la configuración remota (opcionales):
+  CONFIGURACION_URL   p. ej. http://localhost/api/configuracion
+  INGESTA_TOKEN, INGESTA_HMAC_SECRET   los mismos del .env de Laravel
+
+Trama 0x20 — Configuración (gateway -> nodo, 9 bytes, little-endian):
+  0-5  encabezado (version, tipo 0x20, nodo destino, secuencia del gateway, banderas 0)
+  6    cfg_version     uint8   1..255 (0 = sin configuración remota)
+  7-8  intervalo_min   uint16  minutos entre transmisiones (15..120)
+
 Requiere: python3-serial (apt) en la Raspberry Pi
 """
 
 import argparse
 import csv
 import datetime
+import hashlib
+import hmac
+import json
 import re
 import struct
 import os
 import sys
+import threading
 import time
+import urllib.request
 from collections import Counter
 
 PROTO_VERSION = 1
@@ -43,6 +63,10 @@ COLUMNAS_CSV = ["fecha_hora", "rssi_dbm", "nodo", "tipo", "secuencia", "banderas
 RE_RX = re.compile(r"\|(-\d{1,3})\|((?:[0-9A-Fa-f]{2}){6,})\s*$")   # |<rssi>|<hex>: tolera el comienzo dañado
 RE_HB = re.compile(r"^(?:#?H?B?\|)?\d{3,}\s*$")   # #HB|<ms>, aunque haya perdido parte o todo el prefijo
 RESUMEN_CADA_S = 600
+TIPO_CONFIG = 0x20
+BAND_CFG_RECHAZADA = 0x04
+BAND_ESCUCHA = 0x08
+CONSULTA_CONFIG_CADA_S = 300
 
 # --------------------------------------------------------------------------
 # Decodificación
@@ -99,6 +123,59 @@ def decodificar(datos):
 
 
 # --------------------------------------------------------------------------
+# Configuración remota (CU-06)
+# --------------------------------------------------------------------------
+class ConfiguracionRemota:
+    """Intervalo vigente según Laravel, actualizado en segundo plano.
+
+    La consulta va en un hilo aparte para que una demora o una caída de Laravel
+    nunca retrase la respuesta a un nodo: el nodo escucha solo un par de segundos
+    después de transmitir. Si una consulta falla se conserva el último valor bueno.
+    """
+
+    def __init__(self, url, token, secreto):
+        self.url, self.token, self.secreto = url, token, secreto
+        self.vigente = None             # (cfg_version, intervalo_min) o None
+        self.secuencia = 0
+        threading.Thread(target=self._consultar_siempre, daemon=True).start()
+
+    def _consultar_siempre(self):
+        while True:
+            try:
+                self.vigente = self._consultar()
+            except Exception as e:      # red, HTTP o JSON: se reintenta en el próximo ciclo
+                print(f"  ! No se pudo consultar la configuración: {e}")
+            time.sleep(CONSULTA_CONFIG_CADA_S)
+
+    def _consultar(self):
+        timestamp = str(int(time.time()))
+        firma = hmac.new(self.secreto.encode(), f"{timestamp}.".encode(), hashlib.sha256).hexdigest()
+        pedido = urllib.request.Request(self.url, headers={
+            "Accept": "application/json",
+            "Authorization": f"Bearer {self.token}",
+            "X-Ingesta-Timestamp": timestamp,
+            "X-Ingesta-Signature": firma,
+        })
+        with urllib.request.urlopen(pedido, timeout=5) as respuesta:
+            datos = json.load(respuesta)
+        vigente = (int(datos["cfg_version"]), int(datos["intervalo_transmision_minutos"]))
+        if vigente != self.vigente:
+            print(f"Configuración vigente: versión {vigente[0]}, intervalo {vigente[1]} min")
+        return vigente
+
+    def trama_para(self, t):
+        """Trama 0x20 para el nodo de `t` si está escuchando y no tiene la versión vigente."""
+        if self.vigente is None or not (t["banderas"] & BAND_ESCUCHA):
+            return None
+        cfg_version, intervalo = self.vigente
+        if t.get("cfg_version") == cfg_version:
+            return None
+        self.secuencia = (self.secuencia + 1) % 65536
+        return struct.pack("<BBBHBBH", PROTO_VERSION, TIPO_CONFIG, t["nodo"], self.secuencia, 0,
+                           cfg_version, intervalo)
+
+
+# --------------------------------------------------------------------------
 # Métricas de la prueba
 # --------------------------------------------------------------------------
 class Metricas:
@@ -121,7 +198,8 @@ class Metricas:
                                          "dist_ok": [], "rssi": [],
                                          "temp": [], "hum": [], "suelo": [], "luz": [],
                                          "ultima_basc": None, "reinicio_pluvio": False,
-                                         "lluvia_total": 0.0, "secuencias_raras": 0})
+                                         "lluvia_total": 0.0, "secuencias_raras": 0,
+                                         "cfg_enviadas": 0, "cfg_rechazadas": 0})
 
     def registrar_trama(self, t, rssi):
         m = self.nodo(t["nodo"])
@@ -141,6 +219,9 @@ class Metricas:
             m["reinicios"] += 1
         if es_arranque:
             m["reinicio_pluvio"] = True   # el SEN0575 pudo perder su contador
+        if t["banderas"] & BAND_CFG_RECHAZADA:
+            m["cfg_rechazadas"] += 1
+            print(f"  ! Nodo {t['nodo']}: rechazó la última configuración enviada")
         m["ultima_seq"] = seq
         m["recibidas"] += 1
         m["rssi"].append(rssi)
@@ -208,6 +289,8 @@ class Metricas:
                     print(f"    {nombre}: min {min(v)} | max {max(v)} {unidad}")
             if m["ultima_basc"] is not None:
                 print(f"    lluvia acumulada: {m['lluvia_total']:.2f} mm (contador {m['ultima_basc']})")
+            if m["cfg_enviadas"] or m["cfg_rechazadas"]:
+                print(f"    configuraciones enviadas {m['cfg_enviadas']} | rechazadas {m['cfg_rechazadas']}")
             if m["secuencias_raras"]:
                 print(f"    ! saltos de secuencia sin arranque: {m['secuencias_raras']} (¿NODO_ID duplicado?)")
         print("=" * 64 + "\n")
@@ -242,7 +325,7 @@ def procesar(raw, ts, ahora, met, escritor):
         fila = dict(t, fecha_hora=ts, rssi_dbm=rssi, tipo=t["nombre"],
                     banderas=nombres_banderas(t["banderas"]), hex=hexa)
         escritor.writerow(["" if fila.get(c) is None else fila.get(c, "") for c in COLUMNAS_CSV])
-        return
+        return t
 
     if RE_HB.search(texto):
         met.registrar_hb(ahora)
@@ -256,29 +339,28 @@ def procesar(raw, ts, ahora, met, escritor):
         print(f"{ts} {texto}")
 
 
-def fuente_e220(puerto):
+def fuente_e220(ser):
     """Lee el E220 conectado al UART de la Raspberry Pi.
 
     El módulo entrega cada trama recibida como una ráfaga continua de bytes,
     seguida del byte de RSSI (REG3, bit 7). Una pausa de más de 50 ms marca el
     fin de la trama. Se devuelve en el formato de línea del gateway ESP32
     (RX|<rssi>|<hex>) para conservar el log crudo y el modo --archivo.
+    Recibe el puerto ya abierto porque también se usa para responder (trama 0x20).
     """
-    import serial
-    with serial.Serial(puerto, 9600, timeout=0.05) as ser:
-        ser.reset_input_buffer()
+    ser.reset_input_buffer()
+    buf = b""
+    while True:
+        b = ser.read(64)
+        if b:
+            buf += b
+            continue
+        if len(buf) >= 2:
+            rssi = -(256 - buf[-1])
+            linea = f"RX|{rssi}|{buf[:-1].hex().upper()}".encode()
+            ts = datetime.datetime.now().isoformat(timespec="milliseconds")
+            yield linea, ts, time.time(), True
         buf = b""
-        while True:
-            b = ser.read(64)
-            if b:
-                buf += b
-                continue
-            if len(buf) >= 2:
-                rssi = -(256 - buf[-1])
-                linea = f"RX|{rssi}|{buf[:-1].hex().upper()}".encode()
-                ts = datetime.datetime.now().isoformat(timespec="milliseconds")
-                yield linea, ts, time.time(), True
-            buf = b""
 
 def fuente_archivo(ruta):
     with open(ruta, "rb") as f:
@@ -304,7 +386,20 @@ def main():
 
     os.makedirs(args.salida, exist_ok=True)
     met = Metricas()
-    fuente = fuente_archivo(args.archivo) if args.archivo else fuente_e220(args.puerto)
+    ser = None
+    configuracion = None
+    if args.archivo:
+        fuente = fuente_archivo(args.archivo)
+    else:
+        import serial
+        ser = serial.Serial(args.puerto, 9600, timeout=0.05)
+        fuente = fuente_e220(ser)
+        url = os.environ.get("CONFIGURACION_URL", "")
+        if url:
+            configuracion = ConfiguracionRemota(url, os.environ.get("INGESTA_TOKEN", ""),
+                                                os.environ.get("INGESTA_HMAC_SECRET", ""))
+        else:
+            print("Sin CONFIGURACION_URL: no se envía configuración a los nodos")
     sufijo = "_reproduccion" if args.archivo else ""
     ruta_csv = os.path.join(args.salida, f"lecturas{sufijo}.csv")
     ruta_log = os.path.join(args.salida, "log_crudo.txt")
@@ -329,7 +424,16 @@ def main():
                 if en_vivo:
                     flog.write(ts.encode() + b" " + raw.rstrip(b"\r\n") + b"\n")
                     flog.flush()
-                procesar(raw, ts, ahora, met, escritor)
+                t = procesar(raw, ts, ahora, met, escritor)
+                trama = configuracion.trama_para(t) if configuracion and t else None
+                if trama:
+                    ser.write(trama)            # el nodo sigue escuchando: se responde en el acto
+                    ser.flush()
+                    met.nodo(t["nodo"])["cfg_enviadas"] += 1
+                    flog.write(ts.encode() + b" TX|" + trama.hex().upper().encode() + b"\n")
+                    flog.flush()
+                    print(f"{ts} -> N{t['nodo']} CONFIG versión {configuracion.vigente[0]}, "
+                          f"intervalo {configuracion.vigente[1]} min")
                 fcsv.flush()
                 if ultimo_resumen is None:
                     ultimo_resumen = ahora
@@ -339,6 +443,8 @@ def main():
         except KeyboardInterrupt:
             pass
         met.resumen(time.time() if not args.archivo else ultimo_ahora)
+    if ser:
+        ser.close()
 
 
 if __name__ == "__main__":

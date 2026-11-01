@@ -38,8 +38,6 @@ class Nodos extends Component
      */
     public string $potreroId = '';
 
-    public int $intervaloTransmisionMinutos = 15;
-
     /**
      * Fecha `YYYY-MM-DD` que envía `<x-date>`. Al crear arranca en hoy.
      */
@@ -75,7 +73,6 @@ class Nodos extends Component
         $this->nombre = $nodo->nombre;
         $this->establecimientoId = (string) $nodo->establecimiento_id;
         $this->potreroId = $nodo->potrero_id !== null ? (string) $nodo->potrero_id : '';
-        $this->intervaloTransmisionMinutos = $nodo->intervalo_transmision_minutos;
         $this->instaladoEn = $nodo->instalado_en?->toDateString();
         $this->activo = $nodo->activo;
 
@@ -103,7 +100,6 @@ class Nodos extends Component
             'establecimientoId' => ['required', Rule::exists('establecimientos', 'id')],
             'codigo' => ['required', 'string', 'max:50', Rule::unique('nodos', 'codigo')->ignore($this->editandoId)],
             'nombre' => ['required', 'string', 'max:100'],
-            'intervaloTransmisionMinutos' => ['required', 'integer', 'between:15,120'],
             'instaladoEn' => ['required', 'date', 'before_or_equal:today'],
             'activo' => ['boolean'],
         ], [
@@ -121,7 +117,6 @@ class Nodos extends Component
             'potrero_id' => $potreroId,
             'codigo' => $datos['codigo'],
             'nombre' => $datos['nombre'],
-            'intervalo_transmision_minutos' => $datos['intervaloTransmisionMinutos'],
             'instalado_en' => $datos['instaladoEn'],
             'activo' => $datos['activo'],
         ];
@@ -194,7 +189,6 @@ class Nodos extends Component
         $this->nombre = '';
         $this->establecimientoId = (string) (Establecimiento::unicoRegistrado()?->id ?? '');
         $this->potreroId = '';
-        $this->intervaloTransmisionMinutos = 15;
         $this->instaladoEn = today()->toDateString();
         $this->activo = true;
         $this->resetValidation();
