@@ -254,8 +254,12 @@ void medirSensores(TramaAgua &t) {
   uint8_t fallas = 0;
 
   // 1) Nivel, con pH, turbidez y TDS apagados
+  // TramaAgua es packed: no se puede pasar un campo por referencia (error de GCC),
+  // así que se mide en una variable local y se copia al campo.
   int validas = 0;
-  if (!medirDistancia(t.distancia_mm, validas)) fallas |= FALLA_NIVEL;
+  uint16_t distanciaMm = 0;
+  if (!medirDistancia(distanciaMm, validas)) fallas |= FALLA_NIVEL;
+  t.distancia_mm = distanciaMm;
 
   // 2) Temperatura del agua: se lanza la conversión ahora y se lee al final
   bool dsOk = false;
