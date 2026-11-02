@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\SeSincroniza;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 
 use App\Enums\UserStatus;
@@ -21,7 +22,7 @@ use Spatie\Permission\Traits\HasRoles;
 class User extends Authenticatable implements AuditableContract
 {
     /** @use HasFactory<UserFactory> */
-    use Auditable, HasFactory, HasRoles, Notifiable, TwoFactorAuthenticatable;
+    use Auditable, HasFactory, HasRoles, Notifiable, SeSincroniza, TwoFactorAuthenticatable;
 
     protected $auditExclude = [
         'password',

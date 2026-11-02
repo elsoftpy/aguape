@@ -21,7 +21,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/dashboard');
 
-Route::middleware('guest')->group(function () {
+Route::middleware(['rol:local', 'guest'])->group(function () {
     Route::get('/crear-password/{user}', [CrearPasswordController::class, 'show'])->name('password.create');
     Route::post('/crear-password/{user}', [CrearPasswordController::class, 'store'])->name('password.store');
 });
@@ -83,5 +83,5 @@ Route::livewire('/auditoria', Auditoria::class)
     ->name('auditoria');
 
 Route::livewire('/mi-cuenta', MiCuenta::class)
-    ->middleware(['auth', 'password.confirm'])
+    ->middleware(['rol:local', 'auth', 'password.confirm'])
     ->name('mi-cuenta');

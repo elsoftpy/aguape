@@ -161,13 +161,14 @@ return [
     |
     */
 
-    'features' => [
+    // En la nube los usuarios vienen de la Pi: no se cambia contraseña ni perfil ahí.
+    'features' => array_values(array_filter([
         // Inactivar el registro de usuarios (por alcance del proyecto)
         // Features::registration(),
-        Features::resetPasswords(),
+        env('APP_ROL', 'local') === 'local' ? Features::resetPasswords() : null,
         // Features::emailVerification(),
-        Features::updateProfileInformation(),
-        Features::updatePasswords(),
+        env('APP_ROL', 'local') === 'local' ? Features::updateProfileInformation() : null,
+        env('APP_ROL', 'local') === 'local' ? Features::updatePasswords() : null,
         Features::twoFactorAuthentication([
             'confirm' => true,
             'confirmPassword' => true,
@@ -177,6 +178,6 @@ return [
         // Features::passkeys([
         //     'confirmPassword' => true,
         // ]),
-    ],
+    ])),
 
 ];

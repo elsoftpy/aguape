@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\SeSincroniza;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -13,7 +14,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class IthCorte extends Model
 {
     /** @use HasFactory<\Database\Factories\IthCorteFactory> */
-    use HasFactory;
+    use HasFactory, SeSincroniza;
 
     public const HORAS = 6;
 

@@ -33,9 +33,11 @@
             
             <x-checkbox name="remember" label="Recordarme en este dispositivo" color="cyan" />
             
-            <a href="{{ route('password.request') }}" class="text-xs font-semibold text-text-secondary underline">
-                ¿Olvidaste tu contraseña?
-            </a>
+            @if (Route::has('password.request'))
+                <a href="{{ route('password.request') }}" class="text-xs font-semibold text-text-secondary underline">
+                    ¿Olvidaste tu contraseña?
+                </a>
+            @endif
         </div>
 
         <div class="flex flex-col items-center">

@@ -7,6 +7,7 @@ use App\Enums\PermissionsEnum;
 use App\Livewire\Concerns\FiltraPorNodoVariableFecha;
 use App\Models\Alerta;
 use App\Models\Establecimiento;
+use App\Models\SincronizacionPendiente;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Livewire\Attributes\Computed;
@@ -68,6 +69,11 @@ class Alertas extends Component
             ]);
 
         unset($this->totalPendientes, $this->totalRevisadas);
+
+        // El update directo no dispara los eventos del modelo.
+        if ($marcadas > 0) {
+            SincronizacionPendiente::registrar('alertas', $alerta->id);
+        }
 
         if ($marcadas === 0) {
             $this->avisarYaRevisada($alerta->fresh());

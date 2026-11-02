@@ -1,9 +1,11 @@
 <?php
 
 use App\Exceptions\NodoInactivoException;
+use App\Http\Middleware\RequiereRol;
 use App\Http\Middleware\VerifyIngestaSignature;
 use App\Http\Middleware\VerifyIngestaToken;
 use App\Http\Middleware\VerifyRecaptcha;
+use App\Http\Middleware\VerifySincronizacionFirma;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -27,6 +29,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'role_or_permission' => RoleOrPermissionMiddleware::class,
             'ingesta.token' => VerifyIngestaToken::class,
             'ingesta.signature' => VerifyIngestaSignature::class,
+            'sincronizacion.firma' => VerifySincronizacionFirma::class,
+            'rol' => RequiereRol::class,
         ]);
 
         $middleware->web(append: [

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\SeSincroniza;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -12,7 +13,7 @@ use OwenIt\Auditing\Auditable;
 #[Fillable(['nombre', 'ubicacion', 'hectareas'])]
 class Establecimiento extends Model implements AuditableContract
 {
-    use Auditable, HasFactory;
+    use Auditable, HasFactory, SeSincroniza;
 
     /**
      * Solo devuelve el establecimiento si hay uno solo registrado.

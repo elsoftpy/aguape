@@ -67,6 +67,9 @@ return [
 
     'timezone' => env('APP_TIMEZONE', 'America/Asuncion'),
 
+    // 'local' en la Raspberry Pi, 'nube' en la copia de solo lectura.
+    'rol' => env('APP_ROL', 'local'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Locale Configuration

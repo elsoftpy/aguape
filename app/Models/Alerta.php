@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\SeSincroniza;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use App\Enums\EstadoAlerta;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -21,7 +22,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class Alerta extends Model
 {
     /** @use HasFactory<\Database\Factories\AlertaFactory> */
-    use HasFactory;
+    use HasFactory, SeSincroniza;
 
     protected function casts(): array
     {

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\SeSincroniza;
 use App\Observers\LecturaObserver;
 use Database\Factories\LecturaFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -16,7 +17,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Lectura extends Model
 {
     /** @use HasFactory<LecturaFactory> */
-    use HasFactory;
+    use HasFactory, SeSincroniza;
 
     protected function casts(): array
     {

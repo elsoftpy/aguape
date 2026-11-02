@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\SeSincroniza;
 use Carbon\CarbonInterface;
 use Database\Factories\NodoFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -23,7 +24,7 @@ use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
 class Nodo extends Model implements AuditableContract
 {
     /** @use HasFactory<NodoFactory> */
-    use Auditable, HasFactory;
+    use Auditable, HasFactory, SeSincroniza;
 
     protected function casts(): array
     {

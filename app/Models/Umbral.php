@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\SeSincroniza;
 use App\Enums\TipoUmbral;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -15,7 +16,7 @@ use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
 class Umbral extends Model implements AuditableContract
 {
     /** @use HasFactory<\Database\Factories\UmbralFactory> */
-    use Auditable, HasFactory;
+    use Auditable, HasFactory, SeSincroniza;
 
     protected $table = 'umbrales';
 

@@ -40,6 +40,14 @@ return [
         'hmac_secret' => env('INGESTA_HMAC_SECRET'),
         'signature_tolerance_seconds' => env('INGESTA_SIGNATURE_TOLERANCE_SECONDS', 300),
     ],
+
+    'sincronizacion' => [
+        'url' => env('SINCRONIZACION_URL'),
+        'token' => env('SINCRONIZACION_TOKEN'),
+        'hmac_secret' => env('SINCRONIZACION_HMAC_SECRET'),
+        'signature_tolerance_seconds' => env('SINCRONIZACION_SIGNATURE_TOLERANCE_SECONDS', 300),
+        'lote' => env('SINCRONIZACION_LOTE', 500),
+    ],
     
      'recaptcha' => [
         'sitekey' => env('RECAPTCHA_SITE_KEY'),

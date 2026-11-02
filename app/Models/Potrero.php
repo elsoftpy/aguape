@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\SeSincroniza;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -14,7 +15,7 @@ use OwenIt\Auditing\Auditable;
 class Potrero extends Model implements AuditableContract
 {
     /** @use HasFactory<\Database\Factories\PotreroFactory> */
-    use Auditable, HasFactory;
+    use Auditable, HasFactory, SeSincroniza;
 
     public function establecimiento(): BelongsTo
     {

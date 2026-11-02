@@ -6,6 +6,7 @@ use App\Enums\PermissionsEnum;
 use App\Enums\RolesEnum;
 use App\Enums\UserStatus;
 use App\Models\Establecimiento;
+use App\Models\SincronizacionPendiente;
 use App\Models\User;
 use App\Notifications\InvitacionUsuario;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -184,6 +185,9 @@ class Usuarios extends Component
         if ($rolAnterior === $rol) {
             return;
         }
+
+        // syncRoles() no dispara saved: el cambio de rol se registra a mano.
+        SincronizacionPendiente::registrar('users', $usuario->id);
 
         $usuario->auditEvent = 'rolActualizado';
         $usuario->isCustomEvent = true;

@@ -118,6 +118,15 @@ return [
             'replace_placeholders' => true,
         ],
 
+        // Una línea por envío a la nube, para medir RNF11.
+        'sincronizacion' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/sincronizacion.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'days' => env('LOG_SINCRONIZACION_DAYS', 0),
+            'replace_placeholders' => true,
+        ],
+
         'null' => [
             'driver' => 'monolog',
             'handler' => NullHandler::class,
