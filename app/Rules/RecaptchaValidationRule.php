@@ -16,11 +16,20 @@ class RecaptchaValidationRule implements ValidationRule
      */
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
-        $recaptcha = new ReCaptcha(config('services.recaptcha.secretkey'));
+        // Fortify llama a authenticateUsing() dos veces por login (verificación
+        // previa al segundo factor y autenticación). Google invalida el token
+        // en la primera verificación, así que el resultado se reutiliza
+        // dentro de la misma solicitud.
+        $verificados = request()->attributes->get('recaptcha_verificados', []);
 
-        $response = $recaptcha->verify($value, request()->ip());
+        if (! array_key_exists($value, $verificados)) {
+            $response = (new ReCaptcha(config('services.recaptcha.secretkey')))
+                ->verify($value, request()->ip());
+            $verificados[$value] = $response->isSuccess();
+            request()->attributes->set('recaptcha_verificados', $verificados);
+        }
 
-        if (! $response->isSuccess()) {
+        if (! $verificados[$value]) {
             $fail('Verificá que no sos un robot');
         }
     }
